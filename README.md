@@ -50,7 +50,7 @@ flowchart LR
 
 ## Honest limits
 
-This is a front-end demo. There is **no backend and no authentication**: the role rules are enforced in the UI layer to show the model, and they are not a security boundary. A real deployment would enforce them on the server and store data in a database. Scores and thresholds are illustrative and meant to be edited in [`js/logic.js`](js/logic.js).
+This is a front-end demo. There is **no backend and no authentication**: the role rules are enforced in the UI layer to show the model, and they are not a security boundary. A real deployment would enforce them on the server and store data in a database. Scores and thresholds are illustrative and meant to be edited in [`js/logic.js`](js/logic.js). The reasoning behind them is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Run it
 
