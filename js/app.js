@@ -349,8 +349,7 @@ function lightCard(s, editable) {
   return h('section', { class: 'card', id: 'light-card', 'aria-labelledby': 'light-h' },
     h('div', { class: 'card-head' }, h('h2', { id: 'light-h' }, 'Traffic-light form'),
       h('span', { class: 'cap' }, submitted ? `Submitted ${form.submitted}` : 'Draft · saved automatically')),
-    h('h3', {}, 'P0 questions: must know before deciding'),
-    h('p', { class: 'cap' }, 'For each: what is known, and where it was checked. Founder-stated answers count as unverified.'),
+    h('p', { class: 'cap' }, 'P0 questions: what is known and where it was checked. Founder-stated counts as unverified.'),
     h('ul', { class: 'p0-list' }, P0_QUESTIONS.map((q) => {
       const e = form.p0[q] ?? { status: 'unknown', source: '' };
       return h('li', { class: 'p0-item' }, h('b', {}, q),
@@ -361,8 +360,10 @@ function lightCard(s, editable) {
     h('div', { class: 'p0-rule' }, h('b', {}, rule.light ? `Suggested by the rules: ${LIGHTS[rule.light]}` : 'No suggestion yet'), h('span', { class: 'cap' }, rule.why),
       rule.light && !dis && h('button', { class: 'btn sm', onclick: () => { save2({ light: rule.light }); render(); } }, 'Use the suggestion')),
     h('div', { class: 'grid2' }, h('div', {}, h('label', { for: 'f-light' }, 'Light (your decision)'), lightSel), h('div', {}, h('label', {}, 'Shown as'), pill(form.light))),
-    FORM_FIELDS.map((f) => h('div', { class: 'lf-field' }, h('label', { for: `lf-${f.id}` }, f.label),
-      h('textarea', { id: `lf-${f.id}`, rows: 3, maxLength: 1500, disabled: dis, value: form.fields?.[f.id] ?? '', onchange: (ev) => save2({ fields: { ...find(s.id).form.fields, [f.id]: ev.target.value } }) }))),
+    h('details', { class: 'lf-more', open: !submitted && !form.fields?.summary },
+      h('summary', {}, `Form text (${FORM_FIELDS.filter((f) => form.fields?.[f.id]).length} of ${FORM_FIELDS.length} filled)`),
+      h('div', { class: 'lf-grid' }, FORM_FIELDS.map((f) => h('div', { class: 'lf-field' }, h('label', { for: `lf-${f.id}` }, f.label),
+      h('textarea', { id: `lf-${f.id}`, rows: 3, maxLength: 1500, disabled: dis, value: form.fields?.[f.id] ?? '', onchange: (ev) => save2({ fields: { ...find(s.id).form.fields, [f.id]: ev.target.value } }) }))))),
     h('div', { class: 'row end' }, msg,
       !dis && h('button', { class: 'btn ghost', onclick: () => {
         if (Object.values(form.fields ?? {}).some(Boolean) && !confirm('This replaces the current text with a new proposal, including your edits.')) return;

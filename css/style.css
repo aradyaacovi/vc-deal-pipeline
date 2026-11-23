@@ -212,3 +212,16 @@ section.card:hover { border-color: var(--line); }
 .options li { display: flex; justify-content: space-between; align-items: center; gap: .5rem; border: 1px solid var(--line); border-radius: var(--radius); padding: .4rem .6rem; }
 .is-quiet th, .is-quiet td { background: var(--yellow-bg); }
 .wrap { white-space: normal; min-width: 14rem; }
+
+/* compact traffic-light form */
+.p0-list { gap: .25rem; }
+.p0-item { grid-template-columns: minmax(0, 1.1fr) 9.5rem minmax(0, 1fr); align-items: center; padding: .3rem .5rem; gap: .5rem; }
+.p0-item input { grid-column: auto; }
+.p0-item select, .p0-item input { padding: .2rem .4rem; font-size: .88rem; }
+.p0-item b { font-weight: 500; font-size: .9rem; }
+.p0-rule { padding: .35rem .6rem; margin: .35rem 0; }
+.lf-more { margin-top: .5rem; border: 1px solid var(--line); border-radius: var(--radius); padding: .35rem .6rem; }
+.lf-more summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.lf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .75rem; }
+.lf-grid textarea { min-height: 3.2rem; }
+@media (max-width: 720px) { .p0-item, .lf-grid { grid-template-columns: 1fr; } }
