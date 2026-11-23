@@ -35,6 +35,7 @@ I built it from my experience mentoring early-stage startups through a universit
 - **Manager overview.** Workload by analyst (active, stale, submitted, average score and checklist, active ask), active deals, average score, green deals, stale deals, total active ask, a funnel with stage-to-stage conversion, and a table of all deals with checklist progress.
 - **Stale detection.** An active deal with no update for more than 14 days is flagged.
 - **CSV import and export.** Import validates every row and reports problems by file line number. Valid rows can still be imported when others fail. Duplicates and unknown stages are caught.
+- **Calm interface.** Quiet surfaces, with colour kept for what needs action: four exception tiles (red light, gone quiet, not scored, ready for IC) double as table filters, search narrows the list, and a deal opens in a side panel while the list stays in view. Light, dark and auto themes.
 - **Accessible by default.** Keyboard operable, labelled controls, status messages announced, light and dark themes, and traffic lights that carry a word as well as a colour.
 
 ## How it is built

@@ -1,6 +1,6 @@
 import {
   STAGES, RUBRIC, STALE_AFTER_DAYS, scoreDeal, visibleDeals, canEdit, isStale,
-  summarize, funnel, moveDeal, CHECKLIST, checklistProgress, meetingPrep, parseCsv, toCsv, validateImport, formatUsd,
+  summarize, funnel, moveDeal, ACTIVE_STAGES, CHECKLIST, checklistProgress, meetingPrep, parseCsv, toCsv, validateImport, formatUsd,
   FILTERS, filterDeals, validateSubmission, submitDeal, draftMemo, analystSummary, daysInStage,
 } from './logic.js';
 import { load, save, clear } from './store.js';
@@ -10,6 +10,14 @@ const params = new URLSearchParams(location.search);
 const pinned = /^\d{4}-\d{2}-\d{2}$/.test(params.get('today') || '');
 const today = pinned ? params.get('today') : new Date().toISOString().slice(0, 10);
 
+function readTheme() {
+  try { const t = localStorage.getItem('vc-deal-pipeline:theme'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch { return 'auto'; }
+}
+function applyTheme() {
+  if (state.theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = state.theme;
+}
+
 const state = {
   // A pinned ?today= date gives a reproducible demo (used for screenshots), so storage is skipped.
   deals: (!pinned && load()) || seedDeals(today),
@@ -17,8 +25,12 @@ const state = {
   view: params.get('view') === 'overview' ? 'overview' : 'pipeline',
   importPreview: null,
   filter: FILTERS.some((f) => f.id === params.get('filter')) ? params.get('filter') : 'all',
+  tile: null,
+  q: '',
+  theme: ['light', 'dark'].includes(params.get('theme')) ? params.get('theme') : readTheme(),
   status: '',
 };
+applyTheme();
 
 const root = document.getElementById('app');
 const dialog = document.getElementById('detail');
@@ -74,6 +86,16 @@ function header() {
       h('h1', {}, 'Deal Pipeline'),
       h('p', { class: 'sub' }, 'Example Ventures · fictional fund, synthetic data')),
     h('div', { class: 'who' },
+      h('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' },
+        [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([id, label]) => h('button', {
+          type: 'button', 'aria-pressed': state.theme === id ? 'true' : 'false',
+          onclick: () => {
+            state.theme = id;
+            applyTheme();
+            try { localStorage.setItem('vc-deal-pipeline:theme', id); } catch { /* ignore */ }
+            render();
+          },
+        }, label))),
       h('label', { for: 'as' }, 'Viewing as'), select,
       h('button', {
         class: 'btn ghost',
@@ -96,8 +118,15 @@ function tabs() {
   return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('pipeline', 'Pipeline'), tab('overview', 'Overview'));
 }
 
+function notice() {
+  const me = user();
+  const role = me.role === 'manager' ? 'Read-only view of every analyst.' : 'You see and edit only your own deals.';
+  return h('p', { class: 'notice' }, `Demo · fictional fund and data, stored in this browser. ${role}`);
+}
+
 function render() {
   root.replaceChildren(
+    notice(),
     header(),
     tabs(),
     h('p', { class: 'status', role: 'status', 'aria-live': 'polite' }, state.status),
@@ -219,7 +248,6 @@ function pipelineView() {
         isAnalyst && h('label', { class: 'btn ghost file' }, 'Import CSV',
           h('input', { type: 'file', accept: '.csv,text/csv', hidden: true, onchange: onFile })),
         h('button', { class: 'btn ghost', onclick: () => download('deals.csv', toCsv(mine)) }, 'Export CSV'))),
-    !isAnalyst && h('p', { class: 'note' }, 'Manager view is read-only. Switch to an analyst to edit their deals.'),
     filterBar,
     importPanel(),
     h('div', { class: 'board' }, STAGES.map((s) => {
@@ -375,6 +403,13 @@ function openDeal(id) {
 
 // ---- Overview -----------------------------------------------------------------
 
+const TILES = [
+  { id: 'red', label: 'Red light', hint: 'evaluation below 3.0 or a 1', tone: 'red', test: (d) => ACTIVE_STAGES.includes(d.stage) && scoreDeal(d.scores)?.light === 'red' },
+  { id: 'stale', label: 'Gone quiet', hint: `no update > ${STALE_AFTER_DAYS} days`, tone: 'yellow', test: (d) => isStale(d, today) },
+  { id: 'unscored', label: 'Not scored', hint: 'active, no rating yet', tone: 'yellow', test: (d) => ACTIVE_STAGES.includes(d.stage) && !scoreDeal(d.scores) },
+  { id: 'ready', label: 'Ready for IC', hint: 'can be submitted now', tone: 'green', test: (d) => d.stage === 'deep-dive' && validateSubmission(d).length === 0 },
+];
+
 function overviewView() {
   const me = user();
   const deals = visibleDeals(me, state.deals);
@@ -384,17 +419,24 @@ function overviewView() {
   const kpi = (label, value, hint) => h('div', { class: 'kpi' },
     h('span', { class: 'kpi-v' }, String(value)), h('span', { class: 'kpi-l' }, label), hint && h('span', { class: 'kpi-h' }, hint));
 
-  const rows = [...deals].sort((a, b) => b.updated.localeCompare(a.updated));
+  const tile = TILES.find((t) => t.id === state.tile);
+  const needle = state.q.trim().toLowerCase();
+  const rows = deals
+    .filter((d) => (!tile || tile.test(d)) && (!needle || `${d.name} ${d.sector}`.toLowerCase().includes(needle)))
+    .sort((a, b) => b.updated.localeCompare(a.updated));
   return h('main', {},
-    me.role === 'analyst'
-      ? h('p', { class: 'note' }, 'Showing your deals only. Managers see every analyst.')
-      : h('p', { class: 'note' }, 'All analysts, read-only.'),
-    h('div', { class: 'kpis' },
-      kpi('Active deals', s.active, `${s.total} total`),
-      kpi('Avg score', s.avgScore == null ? '—' : s.avgScore.toFixed(1), `${s.scored} scored`),
-      kpi('Green deals', s.green),
-      kpi('Stale', s.stale, `no update > ${STALE_AFTER_DAYS} days`),
-      kpi('Active asks', formatUsd(s.activeAskUsd))),
+    h('div', { class: 'tiles', role: 'group', 'aria-label': 'Filter the table' }, TILES.map((t) => {
+      const n = deals.filter((d) => t.test(d)).length;
+      const pressed = state.tile === t.id;
+      return h('button', {
+        class: `tile${n === 0 ? ' zero' : ` hot ${t.tone}`}`, 'aria-pressed': pressed ? 'true' : 'false',
+        onclick: () => { state.tile = pressed ? null : t.id; render(); },
+      }, h('span', { class: 'v' }, String(n)), h('span', { class: 'l' }, t.label), h('span', { class: 'h' }, t.hint));
+    })),
+    h('p', { class: 'lead' },
+      h('span', { class: 'num' }, String(s.active)), ' active of ', h('span', { class: 'num' }, String(s.total)),
+      ' deals · average score ', h('span', { class: 'num' }, s.avgScore == null ? '—' : s.avgScore.toFixed(1)),
+      ' · active asks ', h('span', { class: 'num' }, formatUsd(s.activeAskUsd))),
     h('section', { class: 'panel' },
       h('h2', {}, 'Funnel'),
       h('p', { class: 'note' }, 'Deals that reached each stage, including those later passed. Percent is the share that moved on from the previous stage.'),
@@ -415,7 +457,13 @@ function overviewView() {
           h('td', {}, a.avgChecklist == null ? '—' : `${a.avgChecklist}%`),
           h('td', {}, formatUsd(a.activeAskUsd)))))))),
     h('section', { class: 'panel' },
-      h('h2', {}, 'All deals'),
+      h('div', { class: 'row', style: 'justify-content:space-between' },
+        h('h2', {}, `Deals (${rows.length})`),
+        h('div', { class: 'row' },
+          h('label', { class: 'sr', for: 'q' }, 'Search deals'),
+          h('input', { id: 'q', class: 'search', type: 'search', placeholder: 'Search company or sector', value: state.q,
+            oninput: (e) => { state.q = e.target.value; render(); document.getElementById('q').focus(); document.getElementById('q').setSelectionRange(state.q.length, state.q.length); } }),
+          (tile || needle) && h('button', { class: 'btn ghost', onclick: () => { state.tile = null; state.q = ''; render(); } }, 'Clear'))),
       h('div', { class: 'scroll' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Company', 'Sector', 'Analyst', 'Stage', 'Ask', 'Score', 'Checklist', 'Updated'].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', {}, rows.map((d) => h('tr', { class: isStale(d, today) ? 'is-stale' : '' },
@@ -423,10 +471,10 @@ function overviewView() {
           h('td', {}, d.sector),
           h('td', {}, analystName(d.analyst)),
           h('td', {}, STAGES.find((st) => st.id === d.stage).label),
-          h('td', {}, formatUsd(d.askUsd)),
+          h('td', { class: 'num' }, formatUsd(d.askUsd)),
           h('td', {}, pill(scoreDeal(d.scores))),
-          h('td', {}, `${checklistProgress(d).percent}%`),
-          h('td', {}, d.updated))))))));
+          h('td', { class: 'num' }, `${checklistProgress(d).percent}%`),
+          h('td', { class: 'num' }, d.updated))))))));
 }
 
 render();
