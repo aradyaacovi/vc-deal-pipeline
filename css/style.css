@@ -91,3 +91,13 @@ label { display: block; font-weight: 600; font-size: .88rem; margin: .5rem 0 .2r
 .prep { margin: .4rem 0; }
 .prep h4 { margin: .6rem 0 .2rem; font-size: .9rem; }
 .prep ul, .prep ol { margin: .2rem 0; padding-left: 1.3rem; }
+
+/* filters, badges, history, memo */
+.filters { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 1rem; }
+.chip { border: 1px solid var(--line); background: transparent; color: inherit; border-radius: 999px; padding: .25rem .7rem; font: inherit; font-size: .85rem; cursor: pointer; }
+.chip.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.badge { font-size: .75rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 .35rem; width: fit-content; opacity: .85; }
+.timeline { list-style: none; margin: .25rem 0 1rem; padding: 0; }
+.timeline li { padding: .2rem 0 .2rem .9rem; border-left: 2px solid var(--line); }
+.timeline .when { display: inline-block; min-width: 6.5rem; opacity: .7; font-variant-numeric: tabular-nums; }
+.memo { white-space: pre-wrap; background: rgba(127,127,127,.1); border-radius: 6px; padding: .75rem; font-size: .85rem; max-height: 18rem; overflow: auto; }

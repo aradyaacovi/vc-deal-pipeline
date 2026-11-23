@@ -34,6 +34,22 @@ const ROWS = [
 const DONE_BY_STAGE = { sourced: 1, screening: 4, 'deep-dive': 10, 'ic-review': 13, invested: 15, passed: 4 };
 const CHECK_IDS = Array.from({ length: 15 }, (_, i) => `c${i + 1}`);
 
+const PATH = ['sourced', 'screening', 'deep-dive', 'ic-review', 'invested'];
+
+// Illustrative stage history: the last move happened on the update date, earlier moves 8 days apart.
+function seedHistory(stage, passedFrom, ago, today) {
+  const last = stage === 'passed' ? passedFrom : stage;
+  const steps = PATH.slice(0, PATH.indexOf(last) + 1);
+  if (stage === 'passed') steps.push('passed');
+  const history = [];
+  for (let i = 1; i < steps.length; i += 1) {
+    history.push({ date: isoDaysAgo(today, ago + (steps.length - 1 - i) * 8), from: steps[i - 1], to: steps[i] });
+  }
+  return history;
+}
+
+const SUBMITTED = { d1: 'ava', d11: 'ben' };
+
 export function seedDeals(today) {
   return ROWS.map(([id, name, sector, stage, analyst, askUsd, ago, s, notes, passedFrom]) => {
     const scores = {};
@@ -41,6 +57,12 @@ export function seedDeals(today) {
       if (s[i]) scores[k] = s[i];
     });
     const checklist = Object.fromEntries(CHECK_IDS.slice(0, DONE_BY_STAGE[stage]).map((c) => [c, true]));
-    return { id, name, sector, stage, analyst, askUsd, notes, scores, checklist, updated: isoDaysAgo(today, ago), passedFrom };
+    const history = seedHistory(stage, passedFrom, ago, today);
+    const deal = { id, name, sector, stage, analyst, askUsd, notes, scores, checklist, updated: isoDaysAgo(today, ago), passedFrom, history };
+    if (SUBMITTED[id]) {
+      const total = Object.entries(scores).reduce((n, [k, v]) => n + v * ({ team: 0.3, market: 0.25, product: 0.2, traction: 0.15, terms: 0.1 })[k], 0);
+      deal.submission = { date: isoDaysAgo(today, ago), light: total >= 3.8 ? 'green' : 'yellow', score: Math.round(total * 100) / 100, by: analyst };
+    }
+    return deal;
   });
 }

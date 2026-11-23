@@ -126,7 +126,8 @@ export function funnel(deals) {
 export function moveDeal(deal, stage, today) {
   if (!STAGE_IDS.includes(stage)) throw new Error(`Unknown stage: ${stage}`);
   const passedFrom = stage === 'passed' ? (deal.stage === 'passed' ? deal.passedFrom : deal.stage) : undefined;
-  return { ...deal, stage, passedFrom, updated: today };
+  const history = stage === deal.stage ? deal.history : [...(deal.history ?? []), { date: today, from: deal.stage, to: stage }];
+  return { ...deal, stage, passedFrom, updated: today, ...(history ? { history } : {}) };
 }
 
 // ---- CSV import / export -------------------------------------------------
@@ -287,4 +288,125 @@ export function meetingPrep(deal) {
     focus: focus.map((c) => (c.score ? `${c.label} (rated ${c.score})` : `${c.label} (not yet rated)`)),
     questions,
   };
+}
+
+// ---- Stage history ---------------------------------------------------------------
+// Each stage change is recorded as { date, from, to }. Deals created before history
+// existed (or imported) simply have none.
+
+/** Days a deal has spent in its current stage, or null when no history exists. */
+export function daysInStage(deal, today) {
+  const last = deal.history?.[deal.history.length - 1];
+  return last ? daysBetween(last.date, today) : null;
+}
+
+// ---- Filtering the board ----------------------------------------------------------
+
+export const FILTERS = [
+  { id: 'all', label: 'All deals' },
+  { id: 'stale', label: 'Stale' },
+  { id: 'green', label: 'Green' },
+  { id: 'yellow', label: 'Yellow' },
+  { id: 'red', label: 'Red' },
+  { id: 'unscored', label: 'Not scored' },
+];
+
+export function filterDeals(deals, filter, today) {
+  if (filter === 'stale') return deals.filter((d) => isStale(d, today));
+  if (filter === 'unscored') return deals.filter((d) => !scoreDeal(d.scores));
+  if (['green', 'yellow', 'red'].includes(filter)) return deals.filter((d) => scoreDeal(d.scores)?.light === filter);
+  return deals;
+}
+
+// ---- Submission to the investment committee -------------------------------------------
+// A deal can only be submitted when the evaluation is complete and the groundwork is done.
+// validateSubmission returns the list of blockers; an empty list means it can go.
+
+export const MIN_CHECKLIST_DONE = 10;
+export const MIN_NOTES_LENGTH = 40;
+
+export function validateSubmission(deal) {
+  const blockers = [];
+  if (!['deep-dive', 'ic-review'].includes(deal.stage)) blockers.push('The deal must be at Deep dive or IC review.');
+  const missing = RUBRIC.filter((c) => !deal.scores?.[c.id]).map((c) => c.label);
+  if (missing.length) blockers.push(`Rate every criterion (missing: ${missing.join(', ')}).`);
+  const score = scoreDeal(deal.scores);
+  if (score?.light === 'red') blockers.push('A red evaluation cannot be submitted. Pass the deal or improve the evidence.');
+  const { done } = checklistProgress(deal);
+  if (done < MIN_CHECKLIST_DONE) blockers.push(`Complete at least ${MIN_CHECKLIST_DONE} checklist steps (${done} done).`);
+  if ((deal.notes ?? '').trim().length < MIN_NOTES_LENGTH) blockers.push(`Add notes of at least ${MIN_NOTES_LENGTH} characters.`);
+  if (!Number.isFinite(deal.askUsd)) blockers.push('Enter the ask.');
+  return blockers;
+}
+
+/** Marks a deal as submitted: moves it to IC review and records what was submitted. */
+export function submitDeal(deal, today) {
+  const blockers = validateSubmission(deal);
+  if (blockers.length) throw new Error(blockers.join(' '));
+  const score = scoreDeal(deal.scores);
+  const moved = moveDeal(deal, 'ic-review', today);
+  return { ...moved, submission: { date: today, light: score.light, score: Math.round(score.value * 100) / 100, by: deal.analyst } };
+}
+
+// ---- Draft investment memo (template, no AI) ------------------------------------------
+
+const RECOMMENDATION = {
+  green: 'Recommend proceeding to a term-sheet discussion, subject to open diligence items.',
+  yellow: 'Recommend a further diligence round before a decision; the evidence is mixed.',
+  red: 'Recommend passing unless new evidence changes the evaluation.',
+};
+
+export function draftMemo(deal) {
+  const score = scoreDeal(deal.scores);
+  const rated = RUBRIC.filter((c) => deal.scores?.[c.id]).map((c) => ({ ...c, score: deal.scores[c.id] }));
+  const strengths = rated.filter((c) => c.score >= 4).map((c) => `${c.label} (${c.score}/5)`);
+  const risks = RUBRIC.map((c) => ({ ...c, score: deal.scores?.[c.id] }))
+    .filter((c) => !c.score || c.score <= 2).map((c) => (c.score ? `${c.label} (${c.score}/5)` : `${c.label} (not rated)`));
+  const lines = [
+    `# Investment memo (draft): ${deal.name}`,
+    '',
+    `Sector: ${deal.sector} · Ask: ${formatUsd(deal.askUsd)} · Stage: ${deal.stage}`,
+    '',
+    '## Summary',
+    deal.notes?.trim() || 'No notes recorded yet.',
+    '',
+    '## Evaluation',
+    score ? `Weighted score ${score.value.toFixed(2)} of 5 (${score.light}${score.complete ? '' : ', partial'}).` : 'Not scored.',
+    '',
+    '| Criterion | Weight | Rating |',
+    '| --- | --- | --- |',
+    ...RUBRIC.map((c) => `| ${c.label} | ${Math.round(c.weight * 100)}% | ${deal.scores?.[c.id] ?? 'n/a'} |`),
+    '',
+    `Strengths: ${strengths.length ? strengths.join(', ') : 'none rated 4 or higher'}.`,
+    `Risks and gaps: ${risks.length ? risks.join(', ') : 'none rated 2 or lower'}.`,
+    '',
+    '## Process',
+    `${checklistProgress(deal).done} of ${CHECKLIST.length} checklist steps complete.`,
+    '',
+    '## Recommendation',
+    score ? RECOMMENDATION[score.light] : 'Complete the evaluation before recommending.',
+    '',
+    '_Template draft generated from the deal record. It has to be reviewed and rewritten by the analyst._',
+  ];
+  return lines.join('\n');
+}
+
+// ---- Workload per analyst (manager view) ------------------------------------------------
+
+export function analystSummary(deals, analysts, today) {
+  return analysts.map((a) => {
+    const mine = deals.filter((d) => d.analyst === a.id);
+    const active = mine.filter((d) => ACTIVE_STAGES.includes(d.stage));
+    const scored = mine.map((d) => scoreDeal(d.scores)).filter(Boolean);
+    return {
+      id: a.id,
+      name: a.name,
+      active: active.length,
+      stale: active.filter((d) => isStale(d, today)).length,
+      submitted: mine.filter((d) => d.submission).length,
+      avgScore: scored.length ? Math.round((scored.reduce((n, x) => n + x.value, 0) / scored.length) * 100) / 100 : null,
+      avgChecklist: active.length ? Math.round(active.reduce((n, d) => n + checklistProgress(d).percent, 0) / active.length) : null,
+      activeAskUsd: active.reduce((n, d) => n + (Number.isFinite(d.askUsd) ? d.askUsd : 0), 0),
+    };
+  });
 }

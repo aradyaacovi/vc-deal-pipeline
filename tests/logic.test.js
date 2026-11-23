@@ -156,3 +156,73 @@ test('meetingPrep targets the weakest and unrated criteria', () => {
   assert.ok(blank.focus.every((f) => f.includes('not yet rated')));
   assert.equal(blank.questions.length, 4);
 });
+
+// ---- history, filters, submission, memo, workload ------------------------------------
+
+import {
+  daysInStage, filterDeals, validateSubmission, submitDeal, draftMemo, analystSummary,
+} from '../js/logic.js';
+
+test('moveDeal records a stage change in history, and not a no-op move', () => {
+  const d = { id: 'x', stage: 'screening', updated: '2026-01-01' };
+  const moved = moveDeal(d, 'deep-dive', TODAY);
+  assert.deepEqual(moved.history, [{ date: TODAY, from: 'screening', to: 'deep-dive' }]);
+  assert.equal(moveDeal(moved, 'deep-dive', '2026-12-01').history.length, 1);
+  assert.equal(daysInStage(moved, '2026-11-25'), 5);
+  assert.equal(daysInStage(d, TODAY), null);
+});
+
+test('seed deals carry a consistent history ending at their current stage', () => {
+  for (const d of seedDeals(TODAY)) {
+    const last = d.history.at(-1);
+    if (d.stage === 'sourced') assert.equal(d.history.length, 0);
+    else assert.equal(last.to, d.stage, d.name);
+  }
+});
+
+test('filterDeals: stale, traffic light and unscored', () => {
+  const deals = seedDeals(TODAY);
+  assert.deepEqual(filterDeals(deals, 'stale', TODAY).map((d) => d.id).sort(), deals.filter((d) => isStale(d, TODAY)).map((d) => d.id).sort());
+  assert.ok(filterDeals(deals, 'green', TODAY).every((d) => scoreDeal(d.scores).light === 'green'));
+  assert.ok(filterDeals(deals, 'unscored', TODAY).every((d) => !scoreDeal(d.scores)));
+  assert.equal(filterDeals(deals, 'all', TODAY).length, deals.length);
+});
+
+test('validateSubmission lists every blocker, and passes a ready deal', () => {
+  const empty = { stage: 'screening', scores: {}, checklist: {}, notes: '' };
+  assert.equal(validateSubmission(empty).length, 5);
+  const red = { ...seedDeals(TODAY).find((d) => d.id === 'd10'), scores: { team: 1, market: 3, product: 3, traction: 3, terms: 3 } };
+  assert.ok(validateSubmission(red).some((b) => b.includes('red')));
+  const ready = seedDeals(TODAY).find((d) => d.id === 'd5');
+  assert.deepEqual(validateSubmission(ready), []);
+});
+
+test('submitDeal moves to IC review, records the submission, and refuses an unready deal', () => {
+  const ready = seedDeals(TODAY).find((d) => d.id === 'd5');
+  const sent = submitDeal(ready, TODAY);
+  assert.equal(sent.stage, 'ic-review');
+  assert.equal(sent.submission.date, TODAY);
+  assert.equal(sent.submission.light, scoreDeal(ready.scores).light);
+  assert.equal(sent.history.at(-1).to, 'ic-review');
+  assert.throws(() => submitDeal({ ...ready, notes: '' }, TODAY));
+});
+
+test('draftMemo includes the evaluation table, a recommendation by light, and flags risks', () => {
+  const memo = draftMemo(seedDeals(TODAY).find((d) => d.id === 'd1'));
+  assert.match(memo, /# Investment memo \(draft\): Brightloom/);
+  assert.match(memo, /\| Team \| 30% \| 5 \|/);
+  assert.match(memo, /term-sheet/);
+  const risky = draftMemo({ name: 'X', sector: 'Y', stage: 'screening', scores: { team: 2 }, notes: '' });
+  assert.match(risky, /Risks and gaps: Team \(2\/5\), Market \(not rated\)/);
+  assert.match(risky, /No notes recorded yet/);
+});
+
+test('analystSummary counts per analyst and ignores empty ones', () => {
+  const deals = seedDeals(TODAY);
+  const rows = analystSummary(deals, USERS.filter((u) => u.role === 'analyst'), TODAY);
+  assert.equal(rows.length, 2);
+  const a = rows.find((r) => r.id === 'ava');
+  assert.equal(a.active, deals.filter((d) => d.analyst === 'ava' && ['sourced', 'screening', 'deep-dive', 'ic-review'].includes(d.stage)).length);
+  assert.equal(a.submitted, 1);
+  assert.equal(analystSummary([], [{ id: 'z', name: 'Z' }], TODAY)[0].avgScore, null);
+});

@@ -1,6 +1,7 @@
 import {
   STAGES, RUBRIC, STALE_AFTER_DAYS, scoreDeal, visibleDeals, canEdit, isStale,
   summarize, funnel, moveDeal, CHECKLIST, checklistProgress, meetingPrep, parseCsv, toCsv, validateImport, formatUsd,
+  FILTERS, filterDeals, validateSubmission, submitDeal, draftMemo, analystSummary, daysInStage,
 } from './logic.js';
 import { load, save, clear } from './store.js';
 import { USERS, seedDeals } from '../data/seed.js';
@@ -15,6 +16,7 @@ const state = {
   userId: USERS.some((u) => u.id === params.get('as')) ? params.get('as') : 'ava',
   view: params.get('view') === 'overview' ? 'overview' : 'pipeline',
   importPreview: null,
+  filter: FILTERS.some((f) => f.id === params.get('filter')) ? params.get('filter') : 'all',
   status: '',
 };
 
@@ -115,6 +117,7 @@ function card(deal) {
       h('span', {}, formatUsd(deal.askUsd)),
       pill(scoreDeal(deal.scores))),
     me.role === 'manager' && h('span', { class: 'sector' }, analystName(deal.analyst)),
+    deal.submission && h('span', { class: 'badge' }, `Submitted ${deal.submission.date}`),
     stale && h('span', { class: 'stale' }, `No update in ${Math.round((Date.parse(today) - Date.parse(deal.updated)) / 86400000)} days`));
 }
 
@@ -164,8 +167,8 @@ async function onFile(e) {
   render();
 }
 
-function download(name, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+function download(name, text, type = 'text/csv') {
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const a = h('a', { href: url, download: name });
   document.body.append(a);
   a.click();
@@ -198,16 +201,26 @@ function importPanel() {
 
 function pipelineView() {
   const me = user();
-  const deals = visibleDeals(me, state.deals);
+  const mine = visibleDeals(me, state.deals);
+  const deals = filterDeals(mine, state.filter, today);
   const isAnalyst = me.role === 'analyst';
+  const filterBar = h('div', { class: 'filters', role: 'group', 'aria-label': 'Filter deals' },
+    FILTERS.map((f) => {
+      const n = filterDeals(mine, f.id, today).length;
+      return h('button', {
+        class: `chip${state.filter === f.id ? ' on' : ''}`, 'aria-pressed': state.filter === f.id ? 'true' : 'false',
+        onclick: () => { state.filter = f.id; render(); },
+      }, `${f.label} ${n}`);
+    }));
   return h('main', {},
     h('div', { class: 'toolbar' },
       isAnalyst && addForm(),
       h('div', { class: 'row' },
         isAnalyst && h('label', { class: 'btn ghost file' }, 'Import CSV',
           h('input', { type: 'file', accept: '.csv,text/csv', hidden: true, onchange: onFile })),
-        h('button', { class: 'btn ghost', onclick: () => download('deals.csv', toCsv(deals)) }, 'Export CSV'))),
+        h('button', { class: 'btn ghost', onclick: () => download('deals.csv', toCsv(mine)) }, 'Export CSV'))),
     !isAnalyst && h('p', { class: 'note' }, 'Manager view is read-only. Switch to an analyst to edit their deals.'),
+    filterBar,
     importPanel(),
     h('div', { class: 'board' }, STAGES.map((s) => {
       const inStage = deals.filter((d) => d.stage === s.id);
@@ -275,6 +288,46 @@ function openDeal(id) {
     },
   }, 'Draft meeting prep');
 
+  const currentDeal = () => ({ ...deal, scores: { ...draft }, checklist: { ...checks }, notes: notes.value.trim(), askUsd: ask.value === '' ? undefined : Math.max(0, Number(ask.value)) });
+
+  const memoOut = h('div', { class: 'prep', 'aria-live': 'polite' });
+  const memoBtn = h('button', {
+    class: 'btn ghost', type: 'button',
+    onclick: () => {
+      const text = draftMemo(currentDeal());
+      memoOut.replaceChildren(
+        h('p', { class: 'note' }, 'Template draft built from the deal record. No AI call is made.'),
+        h('pre', { class: 'memo' }, text),
+        h('button', { class: 'btn ghost', type: 'button', onclick: () => download(`${deal.name.replace(/\W+/g, '-').toLowerCase()}-memo.md`, text, 'text/markdown') }, 'Download .md'));
+    },
+  }, 'Draft IC memo');
+
+  const submitOut = h('div', { class: 'prep', 'aria-live': 'polite' });
+  const submitBtn = h('button', {
+    class: 'btn', type: 'button',
+    onclick: () => {
+      const candidate = currentDeal();
+      const blockers = validateSubmission(candidate);
+      if (blockers.length) {
+        submitOut.replaceChildren(h('p', { class: 'note' }, 'Not ready to submit:'), h('ul', { class: 'errors' }, blockers.map((b) => h('li', {}, b))));
+        return;
+      }
+      if (!confirm(`Submit ${deal.name} to the investment committee? It moves to IC review.`)) return;
+      state.deals = state.deals.map((d) => (d.id === deal.id ? submitDeal(candidate, today) : d));
+      persist();
+      state.status = `Submitted ${deal.name} to IC review.`;
+      dialog.close();
+      render();
+    },
+  }, 'Submit to IC');
+
+  const history = [...(deal.history ?? [])].reverse();
+  const stageLabel = (id) => STAGES.find((st) => st.id === id)?.label ?? id;
+  const historyEl = history.length === 0
+    ? h('p', { class: 'note' }, 'No stage changes recorded yet.')
+    : h('ol', { class: 'timeline' }, history.map((e) => h('li', {}, h('span', { class: 'when' }, e.date), `${stageLabel(e.from)} → ${stageLabel(e.to)}`)));
+  const inStage = daysInStage(deal, today);
+
   dialog.replaceChildren(h('form', {
     method: 'dialog',
     onsubmit: (e) => {
@@ -307,6 +360,12 @@ function openDeal(id) {
   live,
   h('h3', {}, 'Checklist'), progress, h('div', { class: 'rubric' }, checklistEl),
   h('h3', {}, 'Meeting prep'), prepBtn, prepOut,
+  h('h3', {}, 'Investment committee'),
+  deal.submission && h('p', { class: 'note' }, `Submitted ${deal.submission.date}: ${deal.submission.light} (${deal.submission.score.toFixed(2)}).`),
+  h('div', { class: 'row' }, memoBtn, editable && submitBtn), memoOut, submitOut,
+  h('h3', {}, 'Stage history'),
+  inStage != null && h('p', { class: 'note' }, `${inStage} day${inStage === 1 ? '' : 's'} in ${stageLabel(deal.stage)}.`),
+  historyEl,
   h('label', { for: 'f-notes' }, 'Notes'), notes,
   h('div', { class: 'row end' },
     h('button', { class: 'btn ghost', type: 'button', onclick: () => dialog.close() }, editable ? 'Cancel' : 'Close'),
@@ -343,6 +402,18 @@ function overviewView() {
         h('span', { class: 'bar-l' }, STAGES.find((st) => st.id === x.stage).label),
         h('span', { class: 'bar' }, h('span', { class: 'bar-fill', style: `width:${(x.reached / maxReached) * 100}%` })),
         h('span', { class: 'bar-n' }, `${x.reached}${x.conversion == null ? '' : ` · ${x.conversion}%`}`)))),
+    h('section', { class: 'panel' },
+      h('h2', {}, me.role === 'manager' ? 'Workload by analyst' : 'Your workload'),
+      h('div', { class: 'scroll' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['Analyst', 'Active', 'Stale', 'Submitted', 'Avg score', 'Avg checklist', 'Active ask'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', {}, analystSummary(deals, USERS.filter((u) => u.role === 'analyst' && (me.role === 'manager' || u.id === me.id)), today).map((a) => h('tr', {},
+          h('th', { scope: 'row' }, a.name),
+          h('td', {}, String(a.active)),
+          h('td', {}, String(a.stale)),
+          h('td', {}, String(a.submitted)),
+          h('td', {}, a.avgScore == null ? '—' : a.avgScore.toFixed(1)),
+          h('td', {}, a.avgChecklist == null ? '—' : `${a.avgChecklist}%`),
+          h('td', {}, formatUsd(a.activeAskUsd)))))))),
     h('section', { class: 'panel' },
       h('h2', {}, 'All deals'),
       h('div', { class: 'scroll' }, h('table', {},

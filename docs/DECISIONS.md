@@ -30,6 +30,14 @@ Keeps each analyst's work separate and lets the manager view be the single place
 
 The point of the demo is the rules, not the infrastructure. Plain ES modules keep the whole tool readable in an afternoon, and pure logic functions make it testable without a browser.
 
-## Known gap: stage history
+## Stage history, now partly closed
 
-The funnel infers how far a passed deal got from a single `passedFrom` field. A real pipeline needs a stage-event log (deal, from, to, date) so that time-in-stage and cohort conversion can be measured. It is the first item on the roadmap.
+Every stage change is now logged as { date, from, to }, which gives time in the current stage. The funnel still uses `passedFrom` rather than the log, and cohort conversion over time is not built: that would need a database to query. Seeded deals have illustrative histories.
+
+## Submission is gated, not just a stage change
+
+Moving a deal to IC review by dragging it is how weak deals reach the committee. Submission therefore checks the evidence first: a complete, non-red evaluation, enough of the checklist done, real notes and an ask. The thresholds (10 steps, 40 characters) are illustrative and live in `js/logic.js`. A red deal can be passed but not submitted.
+
+## The memo is a template, on purpose
+
+The IC memo is assembled from the deal record with fixed wording, so the output is predictable and testable and no data leaves the browser. It is labelled a draft for the analyst to rewrite. A model-written version would be an optional layer on top, with the user's own key.
