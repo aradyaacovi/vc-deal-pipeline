@@ -1,0 +1,13 @@
+{
+  "name": "vc-deal-pipeline",
+  "version": "1.0.0",
+  "description": "A VC deal-flow tracker: pipeline board, weighted traffic-light evaluation, manager overview, CSV import. Static app, no dependencies, synthetic demo data.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node tools/serve.js",
+    "test": "node --test tests/*.test.js"
+  }
+}
