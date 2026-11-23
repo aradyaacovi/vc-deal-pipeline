@@ -1,4 +1,5 @@
 // Entirely fictional demo data. Company names are invented; any resemblance to a real company is coincidental.
+import { CHECKLIST, P0_QUESTIONS, addDays, newStartup } from '../js/logic.js';
 
 export const USERS = [
   { id: 'ava', name: 'Ava Stein', role: 'analyst' },
@@ -6,63 +7,92 @@ export const USERS = [
   { id: 'dana', name: 'Dana Rossi', role: 'manager' },
 ];
 
-function isoDaysAgo(today, n) {
-  const d = new Date(`${today}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
-}
-
-// [id, name, sector, stage, analyst, askUsd, ago, scores(team,market,product,traction,terms), notes, passedFrom]
+// [id, name, sector, track, lead, second, itemsDone, lastActivityDaysAgo, targetInDays, oneLiner, founder, info, p0, submitted]
 const ROWS = [
-  ['d1', 'Brightloom', 'Climate software', 'ic-review', 'ava', 1500000, 2, [5, 4, 4, 3, 4], 'Carbon accounting for mid-size manufacturers. Two paying pilots; IC memo drafted.'],
-  ['d2', 'Fernwick Health', 'Digital health', 'deep-dive', 'ava', 900000, 5, [4, 4, 3, 2, 3], 'Remote monitoring for post-surgery recovery. Waiting on clinical pilot data.'],
-  ['d3', 'Oakhaven Robotics', 'Industrial automation', 'screening', 'ava', 2500000, 9, [3, 4, 3, 1, 3], 'Warehouse picking arm. No revenue yet; hardware margins unclear.'],
-  ['d4', 'Marlowe Pay', 'Fintech', 'sourced', 'ava', 600000, 3, [], 'Inbound from a founder-community referral. First call booked.'],
-  ['d5', 'Tidewell Labs', 'Water tech', 'deep-dive', 'ava', 1200000, 21, [4, 3, 4, 3, 2], 'Sensor network for leak detection. Follow-up overdue.'],
-  ['d6', 'Cobalt Orchard', 'Agritech', 'passed', 'ava', 800000, 30, [2, 3, 2, 2, 2], 'Passed after screening: crowded space, weak differentiation.', 'screening'],
-  ['d7', 'Halcyon Notes', 'Productivity', 'invested', 'ava', 700000, 60, [4, 4, 5, 4, 4], 'Closed last quarter. Quarterly check-ins scheduled.'],
-  ['d8', 'Pinecrest AI', 'Developer tools', 'screening', 'ben', 1800000, 4, [4, 5, 4, 3, 3], 'Code-review assistant. Strong team from two infrastructure companies.'],
-  ['d9', 'Saltmarsh Foods', 'Food tech', 'sourced', 'ben', 500000, 16, [], 'Plant-based seafood. No contact since the intro email.'],
-  ['d10', 'Kestrel Mobility', 'Mobility', 'deep-dive', 'ben', 3000000, 7, [3, 3, 3, 3, 2], 'Fleet charging marketplace. Market sizing disputed between two sources.'],
-  ['d11', 'Verdant Ledger', 'Fintech', 'ic-review', 'ben', 1000000, 1, [4, 4, 4, 4, 3], 'Treasury tooling for small exporters. IC next Tuesday.'],
-  ['d12', 'Nimbus Clinic', 'Digital health', 'passed', 'ben', 1400000, 45, [3, 2, 3, 1, 2], 'Passed at deep dive: no path to reimbursement.', 'deep-dive'],
-  ['d13', 'Ironbark Security', 'Cybersecurity', 'sourced', 'ben', 900000, 12, [], 'Cold outreach reply. Needs a screening call.'],
-  ['d14', 'Lumenfield', 'Education', 'screening', 'ben', 400000, 18, [2, 3, 3, 2, 3], 'Tutoring marketplace. Sliding on traction; stale.'],
+  ['s1', 'Brightloom', 'Climate software', 'launch', 'ava', 'ben', 16, 2, 6, 'Carbon accounting for mid-size manufacturers.', 'Maya',
+    { team: 'Two founders, ten years in industrial software.', market: 'Mid-size manufacturers must report emissions from 2027.', product: 'Connects to existing ERP data, no new hardware.', traction: 'Two paying pilots, one signed annual contract.' },
+    ['verified', 'verified', 'verified', 'stated', 'verified'], true],
+  ['s2', 'Fernwick Health', 'Digital health', 'launch', 'ava', 'ben', 9, 5, 3, 'Remote monitoring for post-surgery recovery.', 'Noor',
+    { team: 'A surgeon and a data scientist.', market: 'Post-surgery readmissions cost hospitals billions.', product: 'Wearable patch plus clinician dashboard.', traction: 'One hospital pilot, results pending.' },
+    ['stated', 'verified', 'verified', 'unknown', 'stated'], false],
+  ['s3', 'Oakhaven Robotics', 'Industrial automation', 'intro', 'ava', 'ben', 8, 9, 10, 'Warehouse picking arm for mixed items.', 'Tomas',
+    { team: 'Robotics PhDs, no commercial experience.', market: 'Warehouse labour shortage.', product: 'Prototype arm, 70% pick success in tests.', traction: 'No revenue yet.' },
+    ['concern', 'verified', 'stated', 'unknown', 'unknown'], false],
+  ['s4', 'Marlowe Pay', 'Fintech', 'intro', 'ava', 'ben', 1, 3, 2, 'Payments for freelancers working across borders.', 'Iris',
+    { team: 'Former payments product lead and an engineer.', market: 'Freelancer cross-border income is growing.', product: 'Wallet with local payout rails.', traction: 'Waitlist of 900 freelancers.' },
+    null, false],
+  ['s5', 'Tidewell Labs', 'Water tech', 'launch', 'ava', 'ben', 3, 12, 8, 'Sensor network for leak detection in city pipes.', 'Omar',
+    { team: 'Three engineers from a utility.', market: 'Cities lose a fifth of treated water to leaks.', product: 'Clamp-on acoustic sensors.', traction: 'Pilot with one municipality.' },
+    null, false],
+  ['s6', 'Pinecrest AI', 'Developer tools', 'intro', 'ben', 'ava', 5, 1, 12, 'Code-review assistant for large teams.', 'Lena',
+    { team: 'Two founders from infrastructure companies.', market: 'Review is the slowest step in delivery.', product: 'Plugin for the main code hosts.', traction: '40 teams on the free plan.' },
+    null, false],
+  ['s7', 'Saltmarsh Foods', 'Food tech', 'intro', 'ben', 'ava', 2, 9, 5, 'Plant-based seafood for restaurants.', 'Gabe',
+    { team: 'A chef and a food scientist.', market: 'Restaurants want seafood alternatives.', product: 'Three tested products.', traction: 'Two restaurant trials.' },
+    null, false],
+  ['s8', 'Kestrel Mobility', 'Mobility', 'launch', 'ben', 'ava', 12, 4, 7, 'Marketplace for fleet charging capacity.', 'Ravi',
+    { team: 'Founders from a charging operator.', market: 'Fleets electrify faster than depots can keep up.', product: 'Booking and billing platform.', traction: 'Letters of intent from three fleets.' },
+    ['unknown', 'verified', 'stated', 'stated', 'stated'], false],
+  ['s9', 'Verdant Ledger', 'Fintech', 'launch', 'ben', 'ava', 17, 6, null, 'Treasury tooling for small exporters.', 'Hana',
+    { team: 'Finance lead and a backend engineer.', market: 'Small exporters hedge poorly.', product: 'Currency exposure dashboard.', traction: 'Twelve paying customers.' },
+    ['verified', 'verified', 'verified', 'verified', 'stated'], true],
 ];
 
-// How many checklist steps are done at each stage (in order). Illustrative.
-const DONE_BY_STAGE = { sourced: 1, screening: 4, 'deep-dive': 10, 'ic-review': 13, invested: 15, passed: 4 };
-const CHECK_IDS = Array.from({ length: 15 }, (_, i) => `c${i + 1}`);
+const DOCS = [
+  ['Application', ['Application form', 'Pitch deck'], 'received'],
+  ['Financials', ['Last 12 months of financials'], 'missing'],
+  ['Cap table', ['Current cap table'], 'missing'],
+];
 
-const PATH = ['sourced', 'screening', 'deep-dive', 'ic-review', 'invested'];
-
-// Illustrative stage history: the last move happened on the update date, earlier moves 8 days apart.
-function seedHistory(stage, passedFrom, ago, today) {
-  const last = stage === 'passed' ? passedFrom : stage;
-  const steps = PATH.slice(0, PATH.indexOf(last) + 1);
-  if (stage === 'passed') steps.push('passed');
-  const history = [];
-  for (let i = 1; i < steps.length; i += 1) {
-    history.push({ date: isoDaysAgo(today, ago + (steps.length - 1 - i) * 8), from: steps[i - 1], to: steps[i] });
-  }
-  return history;
+export function seedStartups(today) {
+  return ROWS.map(([id, name, sector, track, lead, second, done, ago, target, oneLiner, founder, info, p0, submitted]) => {
+    const s = newStartup({ id, name, sector, track, oneLiner, lead, second, today });
+    s.assigned = addDays(today, -(done * 2 + ago));
+    s.target = target == null ? null : addDays(today, target);
+    s.founders = [founder];
+    s.founderInfo = info;
+    CHECKLIST.slice(0, done).forEach((c, i) => { s.checklist[c.id] = addDays(today, -(ago + Math.max(0, done - 1 - i))); });
+    s.activity = [{ date: s.assigned, text: 'Assigned', by: lead }];
+    CHECKLIST.slice(0, done).forEach((c) => s.activity.push({ date: s.checklist[c.id], text: `Done: ${c.label}`, by: lead }));
+    s.docs = DOCS.map(([folder, files, status]) => ({ folder, files, status: done >= 14 || folder === 'Application' ? 'received' : status }));
+    if (p0) {
+      P0_QUESTIONS.forEach((q, i) => { s.form.p0[q] = { status: p0[i], source: p0[i] === 'verified' ? 'Checked in diligence call' : '' }; });
+    }
+    if (submitted) {
+      s.form.fields = { summary: `${name}: ${oneLiner}`, team: info.team, market: info.market, product: `${info.product} ${info.traction}`, risks: 'No concerns raised.', next: 'Ready for a decision.' };
+      s.form.light = 'green';
+      s.form.submitted = addDays(today, -(ago + 1));
+    }
+    return s;
+  });
 }
 
-const SUBMITTED = { d1: 'ava', d11: 'ben' };
+const HOURS = ['10:00', '12:00', '14:00', '16:00'];
 
-export function seedDeals(today) {
-  return ROWS.map(([id, name, sector, stage, analyst, askUsd, ago, s, notes, passedFrom]) => {
-    const scores = {};
-    ['team', 'market', 'product', 'traction', 'terms'].forEach((k, i) => {
-      if (s[i]) scores[k] = s[i];
-    });
-    const checklist = Object.fromEntries(CHECK_IDS.slice(0, DONE_BY_STAGE[stage]).map((c) => [c, true]));
-    const history = seedHistory(stage, passedFrom, ago, today);
-    const deal = { id, name, sector, stage, analyst, askUsd, notes, scores, checklist, updated: isoDaysAgo(today, ago), passedFrom, history };
-    if (SUBMITTED[id]) {
-      const total = Object.entries(scores).reduce((n, [k, v]) => n + v * ({ team: 0.3, market: 0.25, product: 0.2, traction: 0.15, terms: 0.1 })[k], 0);
-      deal.submission = { date: isoDaysAgo(today, ago), light: total >= 3.8 ? 'green' : 'yellow', score: Math.round(total * 100) / 100, by: analyst };
-    }
-    return deal;
-  });
+function weekdays(today, n) {
+  const days = [];
+  for (let i = 1; days.length < n; i += 1) {
+    const d = addDays(today, i);
+    const wd = new Date(`${d}T00:00:00Z`).getUTCDay();
+    if (wd !== 5 && wd !== 6) days.push(d); // Israeli work week: Sunday to Thursday
+  }
+  return days;
+}
+
+export function slotGrid(today) {
+  return weekdays(today, 5).flatMap((d) => HOURS.map((h) => `${d}T${h}`));
+}
+
+export function seedAvailability(today) {
+  const grid = slotGrid(today);
+  return {
+    ava: grid.filter((_, i) => i % 3 !== 1),
+    ben: grid.filter((_, i) => i % 2 === 0 || i % 5 === 0),
+    dana: [],
+  };
+}
+
+export function seedBookings(today) {
+  const grid = slotGrid(today);
+  return [{ startupId: 's6', lead: 'ben', second: 'ava', slot: grid[2] }];
 }
