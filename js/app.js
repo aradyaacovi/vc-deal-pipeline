@@ -1,6 +1,6 @@
 import {
   STAGES, RUBRIC, STALE_AFTER_DAYS, scoreDeal, visibleDeals, canEdit, isStale,
-  summarize, funnel, moveDeal, parseCsv, toCsv, validateImport, formatUsd,
+  summarize, funnel, moveDeal, CHECKLIST, checklistProgress, meetingPrep, parseCsv, toCsv, validateImport, formatUsd,
 } from './logic.js';
 import { load, save, clear } from './store.js';
 import { USERS, seedDeals } from '../data/seed.js';
@@ -224,6 +224,7 @@ function openDeal(id) {
   if (!deal) return;
   const editable = canEdit(user(), deal);
   const draft = { ...deal.scores };
+  const checks = { ...deal.checklist };
   const live = h('div', { class: 'live', 'aria-live': 'polite' });
   const refresh = () => live.replaceChildren(h('span', {}, 'Weighted score: '), pill(scoreDeal(draft)));
 
@@ -246,6 +247,34 @@ function openDeal(id) {
       }), 'n/a')));
   refresh();
 
+  const progress = h('p', { class: 'note', 'aria-live': 'polite' });
+  const showProgress = () => {
+    const p = checklistProgress({ checklist: checks });
+    progress.textContent = `${p.done} of ${p.total} steps done (${p.percent}%)`;
+  };
+  const phases = [...new Set(CHECKLIST.map((c) => c.phase))];
+  const checklistEl = phases.map((ph) => h('fieldset', { class: 'crit col1', disabled: !editable },
+    h('legend', {}, ph),
+    CHECKLIST.filter((c) => c.phase === ph).map((c) => h('label', { class: 'opt' },
+      h('input', {
+        type: 'checkbox', checked: !!checks[c.id],
+        onchange: (e) => { if (e.target.checked) checks[c.id] = true; else delete checks[c.id]; showProgress(); },
+      }), c.label))));
+  showProgress();
+
+  const prepOut = h('div', { class: 'prep', 'aria-live': 'polite' });
+  const prepBtn = h('button', {
+    class: 'btn ghost', type: 'button',
+    onclick: () => {
+      const m = meetingPrep({ ...deal, scores: draft, notes: notes.value });
+      prepOut.replaceChildren(
+        h('p', { class: 'note' }, 'Template draft built from the scores and notes. No AI call is made.'),
+        h('h4', {}, 'Opening points'), h('ul', {}, m.opening.map((o) => h('li', {}, o))),
+        h('h4', {}, `Focus areas: ${m.focus.join(', ')}`),
+        h('h4', {}, 'Questions'), h('ol', {}, m.questions.map((q) => h('li', {}, h('strong', {}, `${q.criterion}: `), q.text))));
+    },
+  }, 'Draft meeting prep');
+
   dialog.replaceChildren(h('form', {
     method: 'dialog',
     onsubmit: (e) => {
@@ -254,6 +283,7 @@ function openDeal(id) {
       let next = {
         ...deal,
         scores: { ...draft },
+        checklist: { ...checks },
         notes: notes.value.trim(),
         askUsd: ask.value === '' ? undefined : Math.max(0, Number(ask.value)),
       };
@@ -275,6 +305,8 @@ function openDeal(id) {
   h('p', { class: 'note' }, `Rate 1 (weak) to 5 (strong). A 1 on any criterion makes the deal red. Green from 3.8, yellow from 3.0. Deals untouched for over ${STALE_AFTER_DAYS} days are flagged as stale.`),
   h('div', { class: 'rubric' }, rubric),
   live,
+  h('h3', {}, 'Checklist'), progress, h('div', { class: 'rubric' }, checklistEl),
+  h('h3', {}, 'Meeting prep'), prepBtn, prepOut,
   h('label', { for: 'f-notes' }, 'Notes'), notes,
   h('div', { class: 'row end' },
     h('button', { class: 'btn ghost', type: 'button', onclick: () => dialog.close() }, editable ? 'Cancel' : 'Close'),
@@ -314,7 +346,7 @@ function overviewView() {
     h('section', { class: 'panel' },
       h('h2', {}, 'All deals'),
       h('div', { class: 'scroll' }, h('table', {},
-        h('thead', {}, h('tr', {}, ['Company', 'Sector', 'Analyst', 'Stage', 'Ask', 'Score', 'Updated'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('thead', {}, h('tr', {}, ['Company', 'Sector', 'Analyst', 'Stage', 'Ask', 'Score', 'Checklist', 'Updated'].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', {}, rows.map((d) => h('tr', { class: isStale(d, today) ? 'is-stale' : '' },
           h('th', { scope: 'row' }, h('button', { class: 'link', onclick: () => openDeal(d.id) }, d.name)),
           h('td', {}, d.sector),
@@ -322,6 +354,7 @@ function overviewView() {
           h('td', {}, STAGES.find((st) => st.id === d.stage).label),
           h('td', {}, formatUsd(d.askUsd)),
           h('td', {}, pill(scoreDeal(d.scores))),
+          h('td', {}, `${checklistProgress(d).percent}%`),
           h('td', {}, d.updated))))))));
 }
 

@@ -30,12 +30,17 @@ const ROWS = [
   ['d14', 'Lumenfield', 'Education', 'screening', 'ben', 400000, 18, [2, 3, 3, 2, 3], 'Tutoring marketplace. Sliding on traction; stale.'],
 ];
 
+// How many checklist steps are done at each stage (in order). Illustrative.
+const DONE_BY_STAGE = { sourced: 1, screening: 4, 'deep-dive': 10, 'ic-review': 13, invested: 15, passed: 4 };
+const CHECK_IDS = Array.from({ length: 15 }, (_, i) => `c${i + 1}`);
+
 export function seedDeals(today) {
   return ROWS.map(([id, name, sector, stage, analyst, askUsd, ago, s, notes, passedFrom]) => {
     const scores = {};
     ['team', 'market', 'product', 'traction', 'terms'].forEach((k, i) => {
       if (s[i]) scores[k] = s[i];
     });
-    return { id, name, sector, stage, analyst, askUsd, notes, scores, updated: isoDaysAgo(today, ago), passedFrom };
+    const checklist = Object.fromEntries(CHECK_IDS.slice(0, DONE_BY_STAGE[stage]).map((c) => [c, true]));
+    return { id, name, sector, stage, analyst, askUsd, notes, scores, checklist, updated: isoDaysAgo(today, ago), passedFrom };
   });
 }

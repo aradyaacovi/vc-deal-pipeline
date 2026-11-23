@@ -25,8 +25,10 @@ I built it from my experience mentoring early-stage startups through a universit
 
 - **Pipeline board.** Six stages from Sourced to Invested or Passed. Each card shows the ask, the traffic light, and a stale warning.
 - **Weighted evaluation.** Five criteria (team 30%, market 25%, product 20%, traction 15%, terms and fit 10%), each rated 1 to 5. Green from 3.8, yellow from 3.0. **A 1 on any criterion forces red**, so a fatal flaw is not averaged away by strong scores elsewhere. Partial ratings are allowed and marked as partial.
+- **Per-deal checklist.** Fifteen process steps in four phases (before the first meeting, first meeting, after, due diligence) with progress shown on the deal and in the overview. The steps are generic ones I wrote for the demo; a team would swap in its own.
+- **Meeting prep.** One click drafts opening points and questions from the deal's scores and notes. It is a deterministic template, with no AI call: the weakest or unrated criteria get the most questions, so the meeting is spent where the evaluation is least certain.
 - **Roles.** Analysts see and edit only their own deals. The manager sees every deal, read-only.
-- **Manager overview.** Active deals, average score, green deals, stale deals, total active ask, a funnel with stage-to-stage conversion, and a table of all deals.
+- **Manager overview.** Active deals, average score, green deals, stale deals, total active ask, a funnel with stage-to-stage conversion, and a table of all deals with checklist progress.
 - **Stale detection.** An active deal with no update for more than 14 days is flagged.
 - **CSV import and export.** Import validates every row and reports problems by file line number. Valid rows can still be imported when others fail. Duplicates and unknown stages are caught.
 - **Accessible by default.** Keyboard operable, labelled controls, status messages announced, light and dark themes, and traffic lights that carry a word as well as a colour.
@@ -56,12 +58,12 @@ This is a front-end demo. There is **no backend and no authentication**: the rol
 git clone https://github.com/aradyaacovi/vc-deal-pipeline.git
 cd vc-deal-pipeline
 npm start        # http://localhost:8080
-npm test         # 16 unit tests, Node 20+, no install needed
+npm test         # 18 unit tests, Node 20+, no install needed
 ```
 
 ## Tests
 
-The suite covers the rubric weights, light thresholds and the fatal-flaw rule, partial scoring, analyst isolation and manager read-only access, stale detection at the 14-day boundary, funnel counts and conversion, passing and reopening a deal, CSV parsing (quotes, embedded newlines, CRLF), CSV round-trip, and import validation with line numbers. CI runs it on every push and deploys the demo to GitHub Pages.
+The suite covers the rubric weights, light thresholds and the fatal-flaw rule, partial scoring, analyst isolation and manager read-only access, stale detection at the 14-day boundary, funnel counts and conversion, passing and reopening a deal, CSV parsing (quotes, embedded newlines, CRLF), CSV round-trip, import validation with line numbers, checklist progress, and meeting-prep question targeting. CI runs it on every push and deploys the demo to GitHub Pages.
 
 ## How this was built
 

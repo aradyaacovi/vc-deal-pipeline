@@ -229,3 +229,62 @@ export function formatUsd(n) {
   if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
   return `$${n}`;
 }
+
+// ---- Per-deal checklist ------------------------------------------------------
+// Generic process steps written for this demo. Teams would replace them with their own.
+
+export const CHECKLIST = [
+  { id: 'c1', phase: 'Before the first meeting', label: 'Align availability with the analyst team' },
+  { id: 'c2', phase: 'Before the first meeting', label: 'Send an introduction email to the founders' },
+  { id: 'c3', phase: 'Before the first meeting', label: 'Schedule the meeting and send the invitation' },
+  { id: 'c4', phase: 'Before the first meeting', label: 'Research the company, market and competitors' },
+  { id: 'c5', phase: 'Before the first meeting', label: 'Prepare questions' },
+  { id: 'c6', phase: 'First meeting', label: 'Introduce the team and the fund' },
+  { id: 'c7', phase: 'First meeting', label: 'Founders pitch' },
+  { id: 'c8', phase: 'First meeting', label: 'Q&A and next steps' },
+  { id: 'c9', phase: 'After the first meeting', label: 'Debrief with the analyst team' },
+  { id: 'c10', phase: 'After the first meeting', label: 'Complete the traffic-light evaluation' },
+  { id: 'c11', phase: 'After the first meeting', label: 'Send a follow-up email with open questions' },
+  { id: 'c12', phase: 'Due diligence', label: 'Request financials and cap table' },
+  { id: 'c13', phase: 'Due diligence', label: 'Customer and reference calls' },
+  { id: 'c14', phase: 'Due diligence', label: 'Write the investment memo' },
+  { id: 'c15', phase: 'Due diligence', label: 'Present to the investment committee' },
+];
+
+export function checklistProgress(deal) {
+  const done = CHECKLIST.filter((c) => deal.checklist?.[c.id]).length;
+  return { done, total: CHECKLIST.length, percent: Math.round((done / CHECKLIST.length) * 100) };
+}
+
+// ---- Meeting prep (template-based draft) ----------------------------------------
+// Deterministic: no model call. The weakest or unrated criteria get the most questions,
+// so the meeting is spent where the evaluation is least certain.
+
+export const QUESTION_BANK = {
+  team: ['Who is on the founding team, and how long have you worked together?', 'What is the one skill the team lacks today, and how will you fill it?'],
+  market: ['Who is the first customer segment, and how large is it in your own numbers?', 'Which competitor would a customer compare you with, and why do you win?'],
+  product: ['What does the product do today that it did not do six months ago?', 'What is the hardest technical or regulatory problem still open?'],
+  traction: ['What are the three numbers you track weekly, and where are they now?', 'What did the last ten conversations with customers teach you?'],
+  terms: ['What are you raising, on what terms, and what does this round let you reach?', 'Who else is in the round or has been approached?'],
+};
+
+export function meetingPrep(deal) {
+  const rated = RUBRIC.map((c) => ({ ...c, score: deal.scores?.[c.id] }));
+  const order = [...rated].sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
+  const focus = order.slice(0, 3);
+  const questions = [];
+  focus.forEach((c, i) => {
+    const take = i === 0 ? 2 : 1;
+    questions.push(...QUESTION_BANK[c.id].slice(0, take).map((q) => ({ criterion: c.label, text: q })));
+  });
+  const opening = [
+    `Introduce the fund and the team; confirm how long the founders have.`,
+    deal.askUsd ? `Context: ${deal.name} (${deal.sector}) is looking for ${formatUsd(deal.askUsd)}.` : `Context: ${deal.name} (${deal.sector}); ask size not yet known.`,
+    deal.notes ? `Where we left off: ${deal.notes}` : 'No notes yet: start from the founders\' own account.',
+  ];
+  return {
+    opening,
+    focus: focus.map((c) => (c.score ? `${c.label} (rated ${c.score})` : `${c.label} (not yet rated)`)),
+    questions,
+  };
+}

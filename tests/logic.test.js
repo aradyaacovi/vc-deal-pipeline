@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RUBRIC, scoreDeal, visibleDeals, canEdit, daysBetween, isStale, summarize, funnel,
-  moveDeal, parseCsv, toCsv, validateImport, formatUsd,
+  moveDeal, parseCsv, toCsv, validateImport, formatUsd, CHECKLIST, checklistProgress, meetingPrep,
 } from '../js/logic.js';
 import { seedDeals, USERS } from '../data/seed.js';
 
@@ -138,4 +138,21 @@ test('formatUsd', () => {
   assert.equal(formatUsd(1500000), '$1.5M');
   assert.equal(formatUsd(900000), '$900K');
   assert.equal(formatUsd(undefined), '—');
+});
+
+test('checklistProgress counts done steps', () => {
+  assert.deepEqual(checklistProgress({}), { done: 0, total: CHECKLIST.length, percent: 0 });
+  assert.equal(checklistProgress({ checklist: { c1: true, c2: true, nope: true } }).done, 2);
+  const seed = seedDeals(TODAY);
+  assert.equal(checklistProgress(seed.find((d) => d.stage === 'invested')).percent, 100);
+});
+
+test('meetingPrep targets the weakest and unrated criteria', () => {
+  const m = meetingPrep({ name: 'X', sector: 'Y', askUsd: 1000000, notes: '', scores: { team: 5, market: 5, product: 5, traction: 2, terms: 4 } });
+  assert.match(m.focus[0], /^Traction \(rated 2\)/);
+  assert.equal(m.questions.filter((q) => q.criterion === 'Traction').length, 2);
+  assert.ok(m.opening[1].includes('$1M'));
+  const blank = meetingPrep({ name: 'Z', sector: 'Y', scores: {} });
+  assert.ok(blank.focus.every((f) => f.includes('not yet rated')));
+  assert.equal(blank.questions.length, 4);
 });
