@@ -90,6 +90,41 @@ export function datasetHealth(startups) {
   });
 }
 
+/** Linear-interpolated quantile of a sorted list (q between 0 and 1). */
+export function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return Math.round((sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)) * 10) / 10;
+}
+
+/** Spread of days spent in each phase (median and middle half), for startups that finished it. */
+export function stageDurationStats(startups) {
+  return PHASES.map((p, i) => {
+    const days = [];
+    for (const s of startups) {
+      const end = phaseCompletedOn(s, p.id);
+      const start = i === 0 ? s.assigned : phaseCompletedOn(s, PHASES[i - 1].id);
+      if (end && start && daysBetween(start, end) >= 0) days.push(daysBetween(start, end));
+    }
+    days.sort((a, b) => a - b);
+    return { id: p.id, label: p.short, n: days.length, min: days[0] ?? null, p25: quantile(days, 0.25), median: quantile(days, 0.5), p75: quantile(days, 0.75), max: days.at(-1) ?? null };
+  });
+}
+
+/** Startups per sector split by traffic light, largest sector first. */
+export function sectorByLight(startups) {
+  const groups = new Map();
+  for (const s of startups) {
+    const row = groups.get(s.sector) ?? { sector: s.sector, green: 0, yellow: 0, red: 0, none: 0, total: 0 };
+    row[startupLight(s) ?? 'none'] += 1;
+    row.total += 1;
+    groups.set(s.sector, row);
+  }
+  return [...groups.values()].sort((a, b) => b.total - a.total || a.sector.localeCompare(b.sector));
+}
+
 /** One flat, spreadsheet-ready table of the headline numbers (opens cleanly in Excel or Sheets). */
 export function analyticsCsv(startups, today) {
   const k = pipelineKpis(startups, today);

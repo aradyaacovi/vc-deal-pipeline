@@ -4,23 +4,30 @@ import {
   toggleItem, logActivity, p0Rule, proposeForm, formBlockers, openQuestions, startupLight,
   findSlots, bookSlot, freeSlots, slotLabel, draftText, analystSummary, parseCsv, toCsv, newStartup,
 } from './logic.js';
-import { pipelineKpis, funnel, stageDurations, sectorBreakdown, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
+import { pipelineKpis, funnel, stageDurationStats, sectorByLight, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
+import { rangeChart, stackedBars, funnelChart, dataTable } from './charts.js';
+import { seedPortfolio, portfolioAvailability, PORTFOLIO_USERS } from '../data/portfolio-seed.js';
 import { assessImport, rejectedCsv } from './quality.js';
 import { SAMPLE_CSV } from '../data/sample-import.js';
 import { load, save, clear } from './store.js';
-import { USERS, seedStartups, seedAvailability, seedBookings, slotGrid } from '../data/seed.js';
+import { USERS as SMALL_USERS, seedStartups, seedAvailability, seedBookings, slotGrid } from '../data/seed.js';
 
 const params = new URLSearchParams(location.search);
 const pinned = /^\d{4}-\d{2}-\d{2}$/.test(params.get('today') || '');
 const today = pinned ? params.get('today') : new Date().toISOString().slice(0, 10);
+// The default demo is the 12-startup dataset; ?data=small switches to the original 9 (used for the deal-page screenshot).
+const small = params.get('data') === 'small';
+const USERS = small ? SMALL_USERS : PORTFOLIO_USERS;
 const ANALYSTS = USERS.filter((u) => u.role === 'analyst');
 
-const fresh = () => ({ startups: seedStartups(today), availability: seedAvailability(today), bookings: seedBookings(today) });
-const saved = !pinned && load();
+const fresh = () => (small
+  ? { startups: seedStartups(today), availability: seedAvailability(today), bookings: seedBookings(today) }
+  : { startups: seedPortfolio(today), availability: portfolioAvailability(today), bookings: [] });
+const saved = !pinned && !small && load();
 const state = {
   ...(saved || fresh()),
-  userId: USERS.some((u) => u.id === params.get('as')) ? params.get('as') : 'ava',
-  view: ['overview', 'deal', 'analytics'].includes(params.get('view')) ? params.get('view') : 'deals',
+  userId: USERS.some((u) => u.id === params.get('as')) ? params.get('as') : 'dana',
+  view: ['overview', 'deal', 'deals', 'analytics'].includes(params.get('view')) ? params.get('view') : 'analytics',
   dealId: params.get('deal') || null,
   phase: null, tab: 'founders', tile: null, q: '', importPreview: null, status: '',
   theme: ['light', 'dark'].includes(params.get('theme')) ? params.get('theme') : readTheme(),
@@ -117,7 +124,7 @@ function tabs() {
     class: `tab${state.view === id || (id === 'deals' && state.view === 'deal') ? ' on' : ''}`,
     onclick: () => { state.view = id; state.status = ''; render(); },
   }, label);
-  return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('deals', user().role === 'manager' ? 'All startups' : 'My deals'), tab('overview', 'Overview'), tab('analytics', 'Analytics'));
+  return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('analytics', 'Analytics'), tab('deals', user().role === 'manager' ? 'All startups' : 'My deals'), tab('overview', 'Overview'));
 }
 
 function render() {
@@ -503,19 +510,31 @@ function barRow(label, percent, text, wide = false) {
     h('span', { class: 'bar', role: 'img', 'aria-label': `${label}: ${text}` }, h('span', { class: 'bar-fill', style: `width:${percent ?? 0}%` })), h('span', { class: 'bar-n' }, text));
 }
 
+function chartPanel(title, note, svg, table, legendItems) {
+  return h('section', { class: 'panel' }, h('h2', {}, title), note && h('p', { class: 'note' }, note),
+    legendItems && h('p', { class: 'legend' }, legendItems.map(([color, text]) => h('span', {}, h('i', { class: 'swatch', style: `background:var(--${color})` }), text))),
+    svg, table);
+}
+
+function chartWidth() { return Math.max(320, Math.min(960, document.documentElement.clientWidth - 56)); }
+
 function analyticsView() {
   const me = user();
   const mine = visibleStartups(me, state.startups);
   if (!mine.length) return h('main', {}, h('p', { class: 'empty' }, 'No startups to analyse yet.'));
   const k = pipelineKpis(mine, today);
   const fn = funnel(mine);
-  const durations = stageDurations(mine);
-  const sectors = sectorBreakdown(mine);
+  const stats = stageDurationStats(mine);
+  const W = chartWidth();
+  const sectors = sectorByLight(mine);
   const mix = lightMix(mine);
+  const people = ANALYSTS.filter((a) => me.role === 'manager' || a.id === me.id);
+  const load = analystSummary(mine, people, today);
   const pctText = (v) => (v == null ? '—' : `${v}%`);
+  const slow = stats.filter((x) => x.median != null).sort((a, b) => b.median - a.median)[0];
   return h('main', {},
     h('div', { class: 'row', style: 'justify-content:space-between' },
-      h('p', { class: 'lead' }, me.role === 'manager' ? 'All startups' : 'Your startups', ` · as of ${today} · definitions in `, h('a', { href: 'https://github.com/aradyaacovi/vc-deal-pipeline/blob/main/docs/METRICS.md' }, 'METRICS.md')),
+      h('p', { class: 'lead' }, me.role === 'manager' ? 'All startups' : 'Your startups', ` · as of ${today} · synthetic data · definitions in `, h('a', { href: 'https://github.com/aradyaacovi/vc-deal-pipeline/blob/main/docs/METRICS.md' }, 'METRICS.md')),
       h('button', { class: 'btn ghost', onclick: () => download('pipeline-analytics.csv', analyticsCsv(mine, today)) }, 'Export analytics CSV')),
     h('div', { class: 'kpis' },
       kpi(String(k.active), 'Active', `${k.total} startups in total`),
@@ -525,20 +544,29 @@ function analyticsView() {
       kpi(pctText(k.redRate), 'Red lights', `${k.red} of ${mine.length - mix.none} evaluated`),
       kpi(k.daysToFirstMeeting == null ? null : `${k.daysToFirstMeeting}d`, 'To first meeting', 'assignment to meeting done'),
       kpi(pctText(k.formRate), 'Form submitted', 'of startups already met')),
-    h('section', { class: 'panel' }, h('h2', {}, 'Pipeline funnel'),
-      h('p', { class: 'note' }, 'Startups that reached each stage, and the share that moved on from the stage before.'),
-      fn.map((f) => barRow(f.label, Math.round((f.reached / mine.length) * 100), `${f.reached}${f.conversion == null ? '' : ` · ${f.conversion}%`}`))),
-    h('section', { class: 'panel' }, h('h2', {}, 'Time in each phase'),
-      h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Phase', 'Startups that finished it', 'Average days'].map((c) => h('th', { scope: 'col' }, c)))),
-        h('tbody', {}, durations.map((d) => h('tr', {}, h('th', { scope: 'row' }, d.label), h('td', { class: 'num' }, String(d.startups)), h('td', { class: 'num' }, d.avgDays == null ? '—' : String(d.avgDays)))))))),
-    h('section', { class: 'panel' }, h('h2', {}, 'By sector'),
-      h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Sector', 'Startups', 'Share', 'Avg progress', 'Red lights'].map((c) => h('th', { scope: 'col' }, c)))),
-        h('tbody', {}, sectors.map((x) => h('tr', {}, h('th', { scope: 'row' }, x.sector), h('td', { class: 'num' }, String(x.count)), h('td', { class: 'num' }, `${x.share}%`), h('td', { class: 'num' }, `${x.avgProgress}%`), h('td', { class: 'num' }, String(x.red)))))))),
-    h('section', { class: 'panel' }, h('h2', {}, 'Traffic lights'),
-      h('p', {}, ['green', 'yellow', 'red', 'none'].map((l) => h('span', { class: `pill pill-${l}`, style: 'margin-right:.5rem' }, `${l === 'none' ? 'Not evaluated' : LIGHTS[l]}: ${mix[l]}`)))),
+    chartPanel('Where startups drop out', 'Startups that reached each stage, and the share that moved on from the stage before.',
+      funnelChart({ width: W, stages: fn, label: `Funnel: ${fn.map((f) => `${f.label} ${f.reached}`).join(', ')}.` }),
+      dataTable('Funnel', ['Stage', 'Reached', 'Conversion %'], fn.map((f) => [f.label, f.reached, f.conversion]))),
+    chartPanel('Time in each phase', slow ? `${slow.label} is the slowest phase: median ${slow.median} days. Bar = middle half, tick = median, line = fastest to slowest; in brackets, startups that finished the phase.` : 'No finished phases yet.',
+      rangeChart({ width: W, rows: stats, label: `Days per phase, median: ${stats.map((x) => `${x.label} ${x.median ?? 'none'}`).join(', ')}.` }),
+      dataTable('Days per phase', ['Phase', 'Finished', 'Fastest', 'Q1', 'Median', 'Q3', 'Slowest'], stats.map((x) => [x.label, x.n, x.min, x.p25, x.median, x.p75, x.max]))),
+    chartPanel('Sectors and traffic lights', 'Where startups and risks concentrate.',
+      stackedBars({ width: W, rows: sectors.map((x) => ({ label: x.sector, parts: ['green', 'yellow', 'red', 'none'].map((key) => ({ key, value: x[key] })) })), keys: [{ key: 'green', color: 'green' }, { key: 'yellow', color: 'yellow' }, { key: 'red', color: 'red' }, { key: 'none', color: 'none' }], label: `Startups by sector and light. Largest: ${sectors[0].sector}, ${sectors[0].total}.` }),
+      dataTable('Sectors by light', ['Sector', 'Green', 'Yellow', 'Red', 'Not evaluated'], sectors.map((x) => [x.sector, x.green, x.yellow, x.red, x.none])),
+      [['green', 'Green'], ['yellow', 'Yellow'], ['red', 'Red'], ['control', 'Not evaluated']]),
+    chartPanel(me.role === 'manager' ? 'Workload by analyst' : 'Your workload', 'Open startups as lead, split into moving and gone quiet.',
+      stackedBars({ width: W, rows: load.map((a) => ({ label: a.name, parts: [{ key: 'moving', value: a.open - a.quiet }, { key: 'quiet', value: a.quiet }] })), keys: [{ key: 'moving', color: 'brand' }, { key: 'quiet', color: 'yellow' }], label: `Open startups per analyst: ${load.map((a) => `${a.name} ${a.open}`).join(', ')}.` }),
+      dataTable('Workload', ['Analyst', 'Open as lead', 'Gone quiet'], load.map((a) => [a.name, a.open, a.quiet])),
+      [['brand', 'Moving'], ['yellow', 'Gone quiet']]),
     h('section', { class: 'panel' }, h('h2', {}, 'Data health'),
       h('p', { class: 'note' }, 'How complete the records are. Low numbers here mean the analytics above are less reliable.'),
       datasetHealth(mine).map((c) => barRow(c.label, c.percent, `${c.passed}/${c.total}`, true))));
 }
+
+let lastWidth = document.documentElement.clientWidth;
+window.addEventListener('resize', () => {
+  const w = document.documentElement.clientWidth;
+  if (state.view === 'analytics' && w !== lastWidth) { lastWidth = w; render(); }
+});
 
 render();

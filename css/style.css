@@ -230,3 +230,6 @@ section.card:hover { border-color: var(--line); }
 .kpi-v.pill-green, .kpi-v.pill-yellow, .kpi-v.pill-red { align-self: flex-start; padding: 0 .5rem; border-radius: 6px; }
 .bar-row > span:first-child { white-space: nowrap; }
 @media (max-width: 560px) { .bar-row { grid-template-columns: 5rem 1fr 4.5rem; } }
+.chart { width: 100%; height: auto; display: block; margin-top: .4rem; }
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; margin: .25rem 0; font-size: .85rem; color: var(--muted); }
+.swatch { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
