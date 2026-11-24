@@ -130,9 +130,9 @@ function tabs() {
 }
 
 function render() {
-  root.replaceChildren(notice(), header(), tabs(),
+  root.replaceChildren(...[notice(), header(), tabs(),
     h('p', { class: 'status', role: 'status', 'aria-live': 'polite' }, state.status),
-    state.view === 'deal' ? dealPage() : state.view === 'overview' ? overviewView() : state.view === 'analytics' ? analyticsView() : state.view === 'about' ? aboutView() : dealsView(), tourPanel());
+    state.view === 'deal' ? dealPage() : state.view === 'overview' ? overviewView() : state.view === 'analytics' ? analyticsView() : state.view === 'about' ? aboutView() : dealsView(), tourPanel()].filter(Boolean));
 }
 
 // ---- My deals ----------------------------------------------------------------------------------
