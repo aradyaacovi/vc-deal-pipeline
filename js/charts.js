@@ -9,7 +9,7 @@ function el(tag, attrs = {}, ...kids) {
   for (const kid of kids.flat()) if (kid != null) node.append(kid);
   return node;
 }
-const text = (x, y, s, attrs = {}) => el('text', { x, y, fill: COLOR.text, 'font-size': 11, ...attrs }, document.createTextNode(String(s)));
+const text = (x, y, s, attrs = {}) => el('text', { x, y, fill: COLOR.text, 'font-size': 12, ...attrs }, document.createTextNode(String(s)));
 
 /** Hidden table with the same numbers, for screen readers. */
 export function dataTable(caption, headers, rows) {
@@ -42,7 +42,7 @@ export function rangeChart({ rows, label, unit = 'days', width = 960 }) {
   const svg = frame(width, height, label);
   for (let i = 0; i <= 4; i += 1) {
     const v = (max / 4) * i;
-    svg.append(el('line', { x1: x(v), x2: x(v), y1: m.t, y2: height - m.b, stroke: COLOR.grid }), text(x(v), height - 8, `${Math.round(v)}`, { 'text-anchor': 'middle' }));
+    svg.append(el('line', { x1: x(v), x2: x(v), y1: m.t, y2: height - m.b, stroke: COLOR.grid, 'stroke-dasharray': '2 4' }), text(x(v), height - 8, `${Math.round(v)}`, { 'text-anchor': 'middle' }));
   }
   svg.append(text(m.l - 14, height - 8, unit, { 'text-anchor': 'end' }));
   rows.forEach((r, i) => {
@@ -51,7 +51,7 @@ export function rangeChart({ rows, label, unit = 'days', width = 960 }) {
     if (r.n === 0) return;
     svg.append(
       el('line', { x1: x(r.min), x2: x(r.max), y1: cy, y2: cy, stroke: COLOR.none, 'stroke-width': 1.5 }),
-      el('rect', { x: x(r.p25), y: cy - 9, width: Math.max(2, x(r.p75) - x(r.p25)), height: 18, rx: 4, fill: COLOR.brand, opacity: 0.85 }),
+      el('rect', { x: x(r.p25), y: cy - 9, width: Math.max(2, x(r.p75) - x(r.p25)), height: 18, rx: 6, fill: COLOR.brand, opacity: 0.88 }),
       el('line', { x1: x(r.median), x2: x(r.median), y1: cy - 12, y2: cy + 12, stroke: 'var(--ink)', 'stroke-width': 2.5 }),
       text(x(r.max) + 6, cy + 4, `${r.median}`, { fill: 'var(--ink)' }));
   });
@@ -73,7 +73,7 @@ export function stackedBars({ rows, keys, label, width = 960 }) {
     for (const p of r.parts) {
       if (!p.value) continue;
       const color = keys.find((k) => k.key === p.key)?.color;
-      svg.append(el('rect', { x: x0, y: cy + 3, width: p.value * scale, height: rowH - 8, fill: COLOR[color] ?? color, rx: 2 }));
+      svg.append(el('rect', { x: x0, y: cy + 3, width: p.value * scale, height: rowH - 8, fill: COLOR[color] ?? color, rx: 3 }));
       x0 += p.value * scale;
     }
     svg.append(text(x0 + 6, cy + 16, r.parts.reduce((n, p) => n + p.value, 0), { fill: 'var(--ink)' }));
@@ -93,7 +93,7 @@ export function funnelChart({ stages, label, width = 960 }) {
     const w = ((width - m.l - m.r) * s.reached) / top;
     svg.append(
       text(m.l - 8, cy + 20, s.label, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12 }),
-      el('rect', { x: m.l, y: cy + 4, width: Math.max(2, w), height: rowH - 10, rx: 3, fill: COLOR.brand, opacity: 1 - i * 0.12 }),
+      el('rect', { x: m.l, y: cy + 4, width: Math.max(2, w), height: rowH - 10, rx: 6, fill: COLOR.brand, opacity: 1 - i * 0.12 }),
       text(m.l + Math.max(2, w) + 8, cy + 20, s.conversion == null ? `${s.reached}` : `${s.reached} · ${s.conversion}%`, { fill: 'var(--ink)' }));
   });
   return svg;
