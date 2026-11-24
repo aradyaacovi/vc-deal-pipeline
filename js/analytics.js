@@ -1,6 +1,6 @@
 // Pipeline analytics: pure functions over the startup list, no DOM, no storage.
 // Every metric is defined in docs/METRICS.md; keep the two in step.
-import { PHASES, CHECKLIST, progress, phaseProgress, currentPhase, isQuiet, daysToTarget, daysBetween, startupLight, csvEscape } from './logic.js';
+import { PHASES, CHECKLIST, progress, phaseProgress, currentPhase, isQuiet, daysToTarget, daysBetween, addDays, startupLight, csvEscape } from './logic.js';
 
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : null);
 const avg = (nums) => (nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : null);
@@ -88,6 +88,62 @@ export function datasetHealth(startups) {
     const passed = startups.filter(c.test).length;
     return { id: c.id, label: c.label, passed, total: startups.length, percent: pct(passed, startups.length) };
   });
+}
+
+/** Linear-interpolated quantile of a sorted list (q between 0 and 1). */
+export function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return Math.round((sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)) * 10) / 10;
+}
+
+/** Spread of days spent in each phase (median and middle half), for startups that finished it. */
+export function stageDurationStats(startups) {
+  return PHASES.map((p, i) => {
+    const days = [];
+    for (const s of startups) {
+      const end = phaseCompletedOn(s, p.id);
+      const start = i === 0 ? s.assigned : phaseCompletedOn(s, PHASES[i - 1].id);
+      if (end && start && daysBetween(start, end) >= 0) days.push(daysBetween(start, end));
+    }
+    days.sort((a, b) => a - b);
+    return { id: p.id, label: p.short, n: days.length, min: days[0] ?? null, p25: quantile(days, 0.25), median: quantile(days, 0.5), p75: quantile(days, 0.75), max: days.at(-1) ?? null };
+  });
+}
+
+/**
+ * Per period for the last `periods` periods of `span` days (oldest first, default 26 weeks): startups assigned in it,
+ * startups that finished in it, and how many were still open at its end. A period runs from `start` to `end` inclusive.
+ */
+export function weeklyFlow(startups, today, periods = 26, span = 7) {
+  const rows = [];
+  for (let w = periods - 1; w >= 0; w -= 1) {
+    const end = addDays(today, -span * w);
+    const start = addDays(end, -(span - 1));
+    const finished = (s) => s.checklist?.c17;
+    rows.push({
+      start,
+      end,
+      entered: startups.filter((s) => s.assigned >= start && s.assigned <= end).length,
+      completed: startups.filter((s) => finished(s) && s.checklist.c17 >= start && s.checklist.c17 <= end).length,
+      open: startups.filter((s) => s.assigned <= end && !(finished(s) && s.checklist.c17 <= end)).length,
+    });
+  }
+  return rows;
+}
+
+/** Startups per sector split by traffic light, largest sector first. */
+export function sectorByLight(startups) {
+  const groups = new Map();
+  for (const s of startups) {
+    const row = groups.get(s.sector) ?? { sector: s.sector, green: 0, yellow: 0, red: 0, none: 0, total: 0 };
+    row[startupLight(s) ?? 'none'] += 1;
+    row.total += 1;
+    groups.set(s.sector, row);
+  }
+  return [...groups.values()].sort((a, b) => b.total - a.total || a.sector.localeCompare(b.sector));
 }
 
 /** One flat, spreadsheet-ready table of the headline numbers (opens cleanly in Excel or Sheets). */

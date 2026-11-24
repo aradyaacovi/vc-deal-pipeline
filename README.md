@@ -37,7 +37,7 @@ The product decisions come from my own work mentoring startups in a university f
 8. **Document room and activity.** What was requested, what arrived, and a timeline of every change.
 9. **Manager overview.** Read-only. Four exception tiles (red light, gone quiet, due soon, form missing) double as filters, plus search, a startups table and analyst workload.
 
-10. **Pipeline analytics.** Seven KPIs, a stage funnel with conversion, average days in each phase, a sector breakdown, the traffic-light mix and a data-health panel, exportable as one CSV. Analysts see their own startups, managers see all. Every number is defined in [`docs/METRICS.md`](docs/METRICS.md).
+10. **Pipeline analytics.** The demo opens here. Seven KPIs and five SVG charts (flow over time, funnel with conversion, time in each phase with spread, sectors by traffic light, workload) over 72 generated startups, plus a data-health panel, exportable as one CSV. Analysts see their own startups, managers see all. Every number is defined in [`docs/METRICS.md`](docs/METRICS.md).
 11. **Import with data-quality checks.** A CSV is profiled before anything is saved: per-column completeness, rows rejected with line and reason, rows cleaned and flagged (trimmed spaces, sector spelling normalised, near-duplicate names, formula-like text), and a 0-100 quality score. Rejected rows download as a CSV to fix and resend. A deliberately messy sample file is built in (**Try a messy sample file** on the deals page).
 
 Also: CSV export (formula-safe), light, dark and auto themes, and traffic lights that carry a word as well as a colour.
@@ -71,7 +71,7 @@ flowchart LR
 - **Pure logic, separate from the screen.** The checklist, P0 rule, scheduling, drafts, exceptions and CSV validation live in [`js/logic.js`](js/logic.js) with no DOM or storage, and are unit-tested.
 - **No framework, no build step, no dependencies.** Plain ES modules on any static host.
 - **Safe rendering.** Imported text is inserted as text nodes, never HTML.
-- **Reproducible demo.** `?today=2026-11-20&as=ava&view=deal&deal=s1` pins date, user and view, which is how the screenshots were taken.
+- **Reproducible demo.** `?today=2026-11-20&data=small&as=ava&view=deal&deal=s1` pins date, dataset, user and view, which is how the deal-page screenshots were taken. Without `data=small` the demo opens on the Analytics dashboard with 72 generated startups.
 
 ## Honest limits
 
@@ -83,12 +83,12 @@ This is a front-end demo. There is **no backend and no authentication**: roles a
 git clone https://github.com/aradyaacovi/vc-deal-pipeline.git
 cd vc-deal-pipeline
 npm start        # http://localhost:8080
-npm test         # 34 unit tests, Node 20+, no install needed
+npm test         # 43 unit tests, Node 20+, no install needed
 ```
 
 ## Tests
 
-34 tests, all passing in CI. The suite covers the checklist and phase progress, activity logging, analyst isolation and manager read-only access, quiet and due-soon detection, the P0 light rule, form blockers, open questions, availability matching with a double-booking rejection, drafts, exception tiles, workload counts, and CSV parsing, validation, export and formula safety, plus KPI and funnel arithmetic, empty-data handling, role-scoped analytics, and each import-cleaning rule. Measured: a 500-row import (the UI limit) is profiled and cleaned in about 2 ms in Node 22. CI runs it on every push and deploys the demo to GitHub Pages.
+43 tests, all passing in CI. The suite covers the checklist and phase progress, activity logging, analyst isolation and manager read-only access, quiet and due-soon detection, the P0 light rule, form blockers, open questions, availability matching with a double-booking rejection, drafts, exception tiles, workload counts, and CSV parsing, validation, export and formula safety, plus KPI and funnel arithmetic, empty-data handling, role-scoped analytics, and each import-cleaning rule. Measured: a 500-row import (the UI limit) is profiled and cleaned in about 2 ms in Node 22. CI runs it on every push and deploys the demo to GitHub Pages.
 
 ## How this was built
 

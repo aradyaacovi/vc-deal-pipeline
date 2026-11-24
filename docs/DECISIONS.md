@@ -38,6 +38,14 @@ A dashboard is only useful if two readers get the same number. Each metric is de
 
 A row that cannot be used (no name, unknown track, duplicate) is rejected with its line number. A row that can be used but is untidy (spaces, odd sector spelling, near-duplicate name) is imported after cleaning and flagged. Rejecting everything untidy would make people give up on the tool; accepting everything silently would let duplicates and typos reach the manager view. The score and the downloadable rejected-rows file make the trade-off visible. Near-duplicates are only flagged, never merged, because only a person knows whether "Ember Grid" and "Ember Grid Inc." are the same company.
 
+## Charts are hand-drawn SVG, not a library
+
+A charting library would add a dependency and a build step to a project whose point is that it runs from a static folder. Five chart types are small enough to write directly (`js/charts.js`), take their colours from the theme so dark mode works, and each carries a text summary and a data table for screen readers. The cost is no tooltips or animation, which this dashboard does not need.
+
+## The demo data is generated from a seed
+
+Nine hand-written startups cannot show a trend or a funnel. A seeded generator makes 72, with realistic stalls and delays, and gives the same data on every run so tests, screenshots and the live demo agree. The dashboard opens first, as the manager, because the first thing a visitor should see is the analysis.
+
 ## Analytics respect the same roles as the rest of the app
 
 The Analytics tab reads through the same visibility rule as the deal list, so an analyst's KPIs cover only their own startups. A test pins this.

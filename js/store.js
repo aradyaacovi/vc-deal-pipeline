@@ -1,5 +1,5 @@
 // Browser storage with an in-memory fallback (private mode, blocked storage, tests).
-const KEY = 'vc-deal-pipeline:v2';
+const KEY = 'vc-deal-pipeline:v3';
 let memory = null;
 
 export function load() {

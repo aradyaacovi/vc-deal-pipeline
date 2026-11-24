@@ -315,6 +315,7 @@ export function analystSummary(startups, analysts, today) {
       id: a.id,
       name: a.name,
       lead: lead.length,
+      open: open.length,
       second: second.length,
       quiet: open.filter((s) => isQuiet(s, today)).length,
       submitted: lead.filter((s) => s.form?.submitted).length,
