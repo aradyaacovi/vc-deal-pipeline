@@ -1,6 +1,6 @@
 // Pipeline analytics: pure functions over the startup list, no DOM, no storage.
 // Every metric is defined in docs/METRICS.md; keep the two in step.
-import { PHASES, CHECKLIST, progress, phaseProgress, currentPhase, isQuiet, daysToTarget, daysBetween, addDays, startupLight, csvEscape } from './logic.js';
+import { PHASES, CHECKLIST, progress, phaseProgress, currentPhase, isQuiet, daysToTarget, daysBetween, startupLight, csvEscape } from './logic.js';
 
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : null);
 const avg = (nums) => (nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : null);
@@ -111,27 +111,6 @@ export function stageDurationStats(startups) {
     days.sort((a, b) => a - b);
     return { id: p.id, label: p.short, n: days.length, min: days[0] ?? null, p25: quantile(days, 0.25), median: quantile(days, 0.5), p75: quantile(days, 0.75), max: days.at(-1) ?? null };
   });
-}
-
-/**
- * Per period for the last `periods` periods of `span` days (oldest first, default 26 weeks): startups assigned in it,
- * startups that finished in it, and how many were still open at its end. A period runs from `start` to `end` inclusive.
- */
-export function weeklyFlow(startups, today, periods = 26, span = 7) {
-  const rows = [];
-  for (let w = periods - 1; w >= 0; w -= 1) {
-    const end = addDays(today, -span * w);
-    const start = addDays(end, -(span - 1));
-    const finished = (s) => s.checklist?.c17;
-    rows.push({
-      start,
-      end,
-      entered: startups.filter((s) => s.assigned >= start && s.assigned <= end).length,
-      completed: startups.filter((s) => finished(s) && s.checklist.c17 >= start && s.checklist.c17 <= end).length,
-      open: startups.filter((s) => s.assigned <= end && !(finished(s) && s.checklist.c17 <= end)).length,
-    });
-  }
-  return rows;
 }
 
 /** Startups per sector split by traffic light, largest sector first. */

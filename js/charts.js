@@ -32,27 +32,6 @@ function frame(width, height, label) {
 /** Smallest axis maximum >= v that splits into four whole, round steps. */
 const niceMax = (v) => { for (const step of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]) if (step * 4 >= v) return step * 4; return Math.ceil(v / 4) * 4; };
 
-/** Lines over time. series: [{ name, color, values }], labels: x labels (one per point). */
-export function lineChart({ series, labels, label, width = 960, height = 220 }) {
-  const m = { l: 34, r: 16, t: 14, b: 26 };
-  const max = niceMax(Math.max(1, ...series.flatMap((s) => s.values)));
-  const x = (i) => m.l + (labels.length < 2 ? 0 : (i / (labels.length - 1)) * (width - m.l - m.r));
-  const y = (v) => m.t + (1 - v / max) * (height - m.t - m.b);
-  const svg = frame(width, height, label);
-  for (let i = 0; i <= 4; i += 1) {
-    const v = (max / 4) * i;
-    svg.append(el('line', { x1: m.l, x2: width - m.r, y1: y(v), y2: y(v), stroke: COLOR.grid }), text(m.l - 6, y(v) + 4, Math.round(v), { 'text-anchor': 'end' }));
-  }
-  const every = Math.max(1, Math.ceil(labels.length / 6));
-  labels.forEach((l, i) => { if (i % every === 0 || i === labels.length - 1) svg.append(text(x(i), height - 8, l, { 'text-anchor': 'middle' })); });
-  for (const s of series) {
-    svg.append(el('polyline', { points: s.values.map((v, i) => `${x(i)},${y(v)}`).join(' '), fill: 'none', stroke: COLOR[s.color] ?? s.color, 'stroke-width': 2.25, 'stroke-linejoin': 'round', 'stroke-dasharray': s.dash ? '6 4' : null }));
-    const last = s.values.length - 1;
-    svg.append(el('circle', { cx: x(last), cy: y(s.values[last]), r: 3.5, fill: COLOR[s.color] ?? s.color }));
-  }
-  return svg;
-}
-
 /** Horizontal range bars: the middle half as a bar, the median as a tick, min to max as a whisker. */
 export function rangeChart({ rows, label, unit = 'days', width = 960 }) {
   const rowH = 38;

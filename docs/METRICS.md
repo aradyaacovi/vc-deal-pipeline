@@ -26,7 +26,6 @@ Scope: an analyst sees metrics for their own startups (lead or second analyst), 
 
 | Chart | Definition |
 | --- | --- |
-| New and finished per 30 days | Twelve consecutive 30-day periods ending today. *Entered* = startups assigned in the period; *Finished* = startups whose last checklist step (committee presentation) falls in it |
 | Time in each phase (range chart) | Per phase, for startups that finished it: bar = 25th to 75th percentile, tick = median, line = fastest to slowest. Percentiles are linearly interpolated |
 | Sectors and traffic lights | Startups per sector split by light (green, yellow, red, not evaluated), largest sector first |
 | Workload by analyst | Open startups per lead analyst, split into moving and gone quiet (7+ days without activity) |
@@ -35,7 +34,7 @@ Every chart has a text summary and a hidden data table for screen readers.
 
 ## Demo data
 
-The default demo is generated, not hand-written: 72 invented startups over about 12 months from a fixed random seed, so the numbers are identical on every run. Steps take a random number of days per phase and startups stall at set probabilities, which produces a funnel, slow phases and quiet startups to analyse. The generator is in [`data/portfolio-seed.js`](../data/portfolio-seed.js). It is a model of plausible behaviour, not real fund data. Add `?data=small` to the URL for the original 9-startup set.
+The default demo is generated, not hand-written: 12 invented startups and 3 analysts over about one semester, from a fixed random seed, so the numbers are identical on every run. Steps take a random number of days per phase and startups stall at set probabilities, which produces a funnel, a slow phase and a few quiet startups to analyse. The size matches a small student fund on purpose, so the demo stays close to how such a fund works. The generator is in [`data/portfolio-seed.js`](../data/portfolio-seed.js). It is a model of plausible behaviour, not real fund data. Add `?data=small` to the URL for the original 9-startup set.
 
 ## Data health
 

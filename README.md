@@ -37,7 +37,7 @@ The product decisions come from my own work mentoring startups in a university f
 8. **Document room and activity.** What was requested, what arrived, and a timeline of every change.
 9. **Manager overview.** Read-only. Four exception tiles (red light, gone quiet, due soon, form missing) double as filters, plus search, a startups table and analyst workload.
 
-10. **Pipeline analytics.** The demo opens here. Seven KPIs and five SVG charts (flow over time, funnel with conversion, time in each phase with spread, sectors by traffic light, workload) over 72 generated startups, plus a data-health panel, exportable as one CSV. Analysts see their own startups, managers see all. Every number is defined in [`docs/METRICS.md`](docs/METRICS.md).
+10. **Pipeline analytics.** The demo opens here. Seven KPIs and four SVG charts (funnel with conversion, time in each phase with spread, sectors by traffic light, workload) over 12 generated startups sized like a small student fund, plus a data-health panel, exportable as one CSV. Analysts see their own startups, managers see all. Every number is defined in [`docs/METRICS.md`](docs/METRICS.md).
 11. **Import with data-quality checks.** A CSV is profiled before anything is saved: per-column completeness, rows rejected with line and reason, rows cleaned and flagged (trimmed spaces, sector spelling normalised, near-duplicate names, formula-like text), and a 0-100 quality score. Rejected rows download as a CSV to fix and resend. A deliberately messy sample file is built in (**Try a messy sample file** on the deals page).
 
 Also: CSV export (formula-safe), light, dark and auto themes, and traffic lights that carry a word as well as a colour.
@@ -71,7 +71,7 @@ flowchart LR
 - **Pure logic, separate from the screen.** The checklist, P0 rule, scheduling, drafts, exceptions and CSV validation live in [`js/logic.js`](js/logic.js) with no DOM or storage, and are unit-tested.
 - **No framework, no build step, no dependencies.** Plain ES modules on any static host.
 - **Safe rendering.** Imported text is inserted as text nodes, never HTML.
-- **Reproducible demo.** `?today=2026-11-20&data=small&as=ava&view=deal&deal=s1` pins date, dataset, user and view, which is how the deal-page screenshots were taken. Without `data=small` the demo opens on the Analytics dashboard with 72 generated startups.
+- **Reproducible demo.** `?today=2026-11-20&data=small&as=ava&view=deal&deal=s1` pins date, dataset, user and view, which is how the deal-page screenshots were taken. Without `data=small` the demo opens on the Analytics dashboard with 12 generated startups and 3 analysts.
 
 ## Honest limits
 

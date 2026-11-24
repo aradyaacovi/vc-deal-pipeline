@@ -4,8 +4,8 @@ import {
   toggleItem, logActivity, p0Rule, proposeForm, formBlockers, openQuestions, startupLight,
   findSlots, bookSlot, freeSlots, slotLabel, draftText, analystSummary, parseCsv, toCsv, newStartup,
 } from './logic.js';
-import { pipelineKpis, funnel, stageDurationStats, weeklyFlow, sectorByLight, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
-import { lineChart, rangeChart, stackedBars, funnelChart, dataTable } from './charts.js';
+import { pipelineKpis, funnel, stageDurationStats, sectorByLight, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
+import { rangeChart, stackedBars, funnelChart, dataTable } from './charts.js';
 import { seedPortfolio, portfolioAvailability, PORTFOLIO_USERS } from '../data/portfolio-seed.js';
 import { assessImport, rejectedCsv } from './quality.js';
 import { SAMPLE_CSV } from '../data/sample-import.js';
@@ -15,7 +15,7 @@ import { USERS as SMALL_USERS, seedStartups, seedAvailability, seedBookings, slo
 const params = new URLSearchParams(location.search);
 const pinned = /^\d{4}-\d{2}-\d{2}$/.test(params.get('today') || '');
 const today = pinned ? params.get('today') : new Date().toISOString().slice(0, 10);
-// The default demo is the 72-startup dataset; ?data=small switches to the original 9 (used for the deal-page screenshot).
+// The default demo is the 12-startup dataset; ?data=small switches to the original 9 (used for the deal-page screenshot).
 const small = params.get('data') === 'small';
 const USERS = small ? SMALL_USERS : PORTFOLIO_USERS;
 const ANALYSTS = USERS.filter((u) => u.role === 'analyst');
@@ -525,14 +525,12 @@ function analyticsView() {
   const k = pipelineKpis(mine, today);
   const fn = funnel(mine);
   const stats = stageDurationStats(mine);
-  const weeks = weeklyFlow(mine, today, 12, 30);
   const W = chartWidth();
   const sectors = sectorByLight(mine);
   const mix = lightMix(mine);
   const people = ANALYSTS.filter((a) => me.role === 'manager' || a.id === me.id);
   const load = analystSummary(mine, people, today);
   const pctText = (v) => (v == null ? '—' : `${v}%`);
-  const fmt = (iso) => iso.slice(5).replace('-', '/');
   const slow = stats.filter((x) => x.median != null).sort((a, b) => b.median - a.median)[0];
   return h('main', {},
     h('div', { class: 'row', style: 'justify-content:space-between' },
@@ -546,11 +544,6 @@ function analyticsView() {
       kpi(pctText(k.redRate), 'Red lights', `${k.red} of ${mine.length - mix.none} evaluated`),
       kpi(k.daysToFirstMeeting == null ? null : `${k.daysToFirstMeeting}d`, 'To first meeting', 'assignment to meeting done'),
       kpi(pctText(k.formRate), 'Form submitted', 'of startups already met')),
-    chartPanel('New and finished per 30 days', 'Is the pipeline filling or stalling? Last 12 periods of 30 days; each point is the period ending that date.',
-      lineChart({ width: W, labels: weeks.map((w) => fmt(w.end)), label: `Startups entering and finishing per 30 days, last 12 periods. Open now: ${weeks.at(-1).open}.`, series: [
-        { name: 'Entered', color: 'brand', values: weeks.map((w) => w.entered) }, { name: 'Finished', color: 'var(--ink)', dash: true, values: weeks.map((w) => w.completed) }] }),
-      dataTable('Flow per 30 days', ['Period ending', 'Entered', 'Finished', 'Open'], weeks.map((w) => [w.end, w.entered, w.completed, w.open])),
-      [['brand', 'Entered'], ['ink', 'Finished (dashed)']]),
     chartPanel('Where startups drop out', 'Startups that reached each stage, and the share that moved on from the stage before.',
       funnelChart({ width: W, stages: fn, label: `Funnel: ${fn.map((f) => `${f.label} ${f.reached}`).join(', ')}.` }),
       dataTable('Funnel', ['Stage', 'Reached', 'Conversion %'], fn.map((f) => [f.label, f.reached, f.conversion]))),

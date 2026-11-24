@@ -1,4 +1,4 @@
-// A larger, deterministic synthetic dataset (72 invented startups over 12 months) so trends and funnels mean something.
+// A deterministic synthetic dataset sized like a small student fund: 12 invented startups, 3 analysts, one semester.
 // Same seed, same data, every run. All names are invented; any resemblance to a real company is coincidental.
 import { CHECKLIST, P0_QUESTIONS, TRACKS, addDays, newStartup, p0Rule } from '../js/logic.js';
 import { seedAvailability as smallAvailability } from './seed.js';
@@ -7,23 +7,17 @@ export const PORTFOLIO_USERS = [
   { id: 'ava', name: 'Ava Stein', role: 'analyst' },
   { id: 'ben', name: 'Ben Carter', role: 'analyst' },
   { id: 'cleo', name: 'Cleo Marsh', role: 'analyst' },
-  { id: 'dev', name: 'Dev Patel', role: 'analyst' },
   { id: 'dana', name: 'Dana Rossi', role: 'manager' },
 ];
 
-const SEED = 20261120;
-const COUNT = 72;
+const SEED = 314;
+const COUNT = 12;
 const SECTORS = [
-  ['Fintech', 14, ['Payments for', 'Lending tools for', 'Treasury software for']],
-  ['Developer tools', 12, ['Code review for', 'Observability for', 'Testing tools for']],
-  ['Climate software', 10, ['Carbon accounting for', 'Energy planning for', 'Emissions reporting for']],
-  ['Digital health', 10, ['Remote monitoring for', 'Scheduling software for', 'Home testing for']],
-  ['Logistics', 7, ['Route planning for', 'Warehouse software for', 'Freight booking for']],
-  ['Food tech', 6, ['Plant-based products for', 'Supply tracking for', 'Menu software for']],
-  ['Industrial automation', 6, ['Robotic picking for', 'Predictive maintenance for', 'Vision inspection for']],
-  ['Education', 6, ['Tutoring tools for', 'Skills assessment for', 'Course software for']],
-  ['Mobility', 5, ['Fleet charging for', 'Ride booking for', 'Parking software for']],
-  ['Water tech', 4, ['Leak detection for', 'Quality sensing for', 'Irrigation control for']],
+  ['Fintech', 3, ['Payments for', 'Treasury software for']],
+  ['Developer tools', 3, ['Code review for', 'Testing tools for']],
+  ['Climate software', 2, ['Carbon accounting for', 'Energy planning for']],
+  ['Digital health', 2, ['Remote monitoring for', 'Home testing for']],
+  ['Industrial automation', 2, ['Robotic picking for', 'Predictive maintenance for']],
 ];
 const CUSTOMERS = ['small manufacturers', 'regional clinics', 'freelancers', 'city utilities', 'mid-size retailers', 'school networks', 'logistics teams', 'restaurant groups'];
 const FIRST = ['Brook', 'Cedar', 'Dune', 'Ember', 'Fable', 'Gale', 'Harbor', 'Iris', 'Juniper', 'Kite', 'Lumen', 'Maple', 'Nova', 'Opal', 'Pebble', 'Quill', 'Reed', 'Sable', 'Tidal', 'Umber', 'Vale', 'Willow', 'Yarrow', 'Zephyr'];
@@ -63,7 +57,7 @@ export function seedPortfolio(today) {
     const lead = pick(analysts);
     const second = pick(analysts.filter((a) => a !== lead));
     const track = r() < 0.55 ? TRACKS[0].id : TRACKS[1].id;
-    const assigned = addDays(today, -(4 + Math.floor(351 * r() ** 1.5)));
+    const assigned = addDays(today, -(6 + Math.floor(120 * r() ** 1.3)));
     const s = newStartup({ id: `p${i + 1}`, name, sector, track, oneLiner: `${pick(lines)} ${pick(CUSTOMERS)}.`, lead, second, today: assigned });
     s.activity = [{ date: assigned, text: 'Assigned', by: lead }];
     s.founders = [pick(FOUNDERS)];
@@ -111,5 +105,5 @@ export function seedPortfolio(today) {
 
 export function portfolioAvailability(today) {
   const base = smallAvailability(today);
-  return { ...base, cleo: base.ava.filter((_, i) => i % 2 === 0), dev: base.ben.filter((_, i) => i % 3 !== 0) };
+  return { ...base, cleo: base.ava.filter((_, i) => i % 2 === 0) };
 }
