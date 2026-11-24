@@ -225,3 +225,8 @@ section.card:hover { border-color: var(--line); }
 .lf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .75rem; }
 .lf-grid textarea { min-height: 3.2rem; }
 @media (max-width: 720px) { .p0-item, .lf-grid { grid-template-columns: 1fr; } }
+
+.warns { margin: .25rem 0 .75rem; padding-left: 1.2rem; color: var(--yellow); }
+.kpi-v.pill-green, .kpi-v.pill-yellow, .kpi-v.pill-red { align-self: flex-start; padding: 0 .5rem; border-radius: 6px; }
+.bar-row > span:first-child { white-space: nowrap; }
+@media (max-width: 560px) { .bar-row { grid-template-columns: 5rem 1fr 4.5rem; } }

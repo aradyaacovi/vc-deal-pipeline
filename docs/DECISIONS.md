@@ -29,3 +29,15 @@ Four tiles (red light, gone quiet for 7 days, due within 3 days, form missing) s
 ## No backend
 
 Roles are enforced in the UI to show the model. A real deployment would enforce them on the server. The demo stores data in the browser so it can be tried without an account.
+
+## Analytics definitions live in one document
+
+A dashboard is only useful if two readers get the same number. Each metric is defined in [`METRICS.md`](METRICS.md), computed by a pure function in `js/analytics.js`, and tested. Averages describe finished work only, and empty denominators show `—` instead of a misleading 0.
+
+## Import checks separate "reject" from "warn"
+
+A row that cannot be used (no name, unknown track, duplicate) is rejected with its line number. A row that can be used but is untidy (spaces, odd sector spelling, near-duplicate name) is imported after cleaning and flagged. Rejecting everything untidy would make people give up on the tool; accepting everything silently would let duplicates and typos reach the manager view. The score and the downloadable rejected-rows file make the trade-off visible. Near-duplicates are only flagged, never merged, because only a person knows whether "Ember Grid" and "Ember Grid Inc." are the same company.
+
+## Analytics respect the same roles as the rest of the app
+
+The Analytics tab reads through the same visibility rule as the deal list, so an analyst's KPIs cover only their own startups. A test pins this.

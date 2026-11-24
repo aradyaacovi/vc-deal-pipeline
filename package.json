@@ -1,7 +1,7 @@
 {
   "name": "vc-deal-pipeline",
-  "version": "1.0.0",
-  "description": "A VC deal-flow tracker: pipeline board, weighted traffic-light evaluation, manager overview, CSV import. Static app, no dependencies, synthetic demo data.",
+  "version": "1.1.0",
+  "description": "A VC deal-flow tracker: pipeline board, weighted traffic-light evaluation, manager overview, pipeline analytics and KPIs, CSV import with data-quality checks. Static app, no dependencies, synthetic demo data.",
   "type": "module",
   "private": true,
   "license": "MIT",

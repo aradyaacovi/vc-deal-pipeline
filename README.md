@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![dependencies](https://img.shields.io/badge/dependencies-none-success)
 
-**An analyst workflow tool for a student VC fund: every startup moves through the same checklist, each step has a ready-made text, the analyst fills in a traffic-light form, meetings are booked from shared availability, and a manager sees exceptions without editing anything.**
+**An analyst workflow tool for a student VC fund: every startup moves through the same checklist, each step has a ready-made text, the analyst fills in a traffic-light form, meetings are booked from shared availability, a manager sees exceptions without editing anything, and an analytics tab turns the pipeline into measured KPIs.**
 
 This is a fictional demo: a made-up fund ("Example Ventures") with invented companies. Run it locally as described below; data stays in your browser.
 
@@ -14,6 +14,10 @@ This is a fictional demo: a made-up fund ("Example Ventures") with invented comp
 | Deal page | Manager overview |
 | --- | --- |
 | ![Deal page](docs/screenshots/deal.png) | ![Overview](docs/screenshots/overview.png) |
+
+| Pipeline analytics and KPIs | CSV import with data-quality checks |
+| --- | --- |
+| ![Analytics](docs/screenshots/analytics.png) | ![Import check](docs/screenshots/import-check.png) |
 
 ## The problem
 
@@ -33,16 +37,35 @@ The product decisions come from my own work mentoring startups in a university f
 8. **Document room and activity.** What was requested, what arrived, and a timeline of every change.
 9. **Manager overview.** Read-only. Four exception tiles (red light, gone quiet, due soon, form missing) double as filters, plus search, a startups table and analyst workload.
 
-Also: CSV import and export (validated, with line numbers, formula-safe), light, dark and auto themes, and traffic lights that carry a word as well as a colour.
+10. **Pipeline analytics.** Seven KPIs, a stage funnel with conversion, average days in each phase, a sector breakdown, the traffic-light mix and a data-health panel, exportable as one CSV. Analysts see their own startups, managers see all. Every number is defined in [`docs/METRICS.md`](docs/METRICS.md).
+11. **Import with data-quality checks.** A CSV is profiled before anything is saved: per-column completeness, rows rejected with line and reason, rows cleaned and flagged (trimmed spaces, sector spelling normalised, near-duplicate names, formula-like text), and a 0-100 quality score. Rejected rows download as a CSV to fix and resend. A deliberately messy sample file is built in (**Try a messy sample file** on the deals page).
+
+Also: CSV export (formula-safe), light, dark and auto themes, and traffic lights that carry a word as well as a colour.
+
+## What this project demonstrates
+
+| Skill | Where to look |
+| --- | --- |
+| Defining and computing KPIs, funnels and cycle times | [`js/analytics.js`](js/analytics.js), [`docs/METRICS.md`](docs/METRICS.md) |
+| Data validation, cleaning and profiling | [`js/quality.js`](js/quality.js), [`tests/quality.test.js`](tests/quality.test.js) |
+| Handling edge cases (empty data, zero denominators, bad input) | [`tests/analytics.test.js`](tests/analytics.test.js) |
+| Role-based access to data | `visibleStartups` in [`js/logic.js`](js/logic.js) and the isolation tests |
+| Documenting decisions and trade-offs | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 
 ## How it is built
 
 ```mermaid
 flowchart LR
   UI[app.js<br/>views and events] --> L[logic.js<br/>checklist, P0 rule, scheduling, drafts, CSV]
+  UI --> A[analytics.js<br/>KPIs, funnel, phase time, sectors]
+  UI --> Q[quality.js<br/>import profiling, cleaning, score]
   UI --> S[store.js<br/>localStorage + memory fallback]
-  UI --> D[seed.js<br/>fictional demo data]
-  T[tests/logic.test.js] --> L
+  UI --> D[seed.js and sample-import.js<br/>fictional demo data]
+  A --> L
+  Q --> L
+  T[tests/*.test.js] --> L
+  T --> A
+  T --> Q
 ```
 
 - **Pure logic, separate from the screen.** The checklist, P0 rule, scheduling, drafts, exceptions and CSV validation live in [`js/logic.js`](js/logic.js) with no DOM or storage, and are unit-tested.
@@ -60,12 +83,12 @@ This is a front-end demo. There is **no backend and no authentication**: roles a
 git clone https://github.com/aradyaacovi/vc-deal-pipeline.git
 cd vc-deal-pipeline
 npm start        # http://localhost:8080
-npm test         # 14 unit tests, Node 20+, no install needed
+npm test         # 34 unit tests, Node 20+, no install needed
 ```
 
 ## Tests
 
-The suite covers the checklist and phase progress, activity logging, analyst isolation and manager read-only access, quiet and due-soon detection, the P0 light rule, form blockers, open questions, availability matching with a double-booking rejection, drafts, exception tiles, workload counts, and CSV parsing, validation, export and formula safety. CI runs it on every push and deploys the demo to GitHub Pages.
+34 tests, all passing in CI. The suite covers the checklist and phase progress, activity logging, analyst isolation and manager read-only access, quiet and due-soon detection, the P0 light rule, form blockers, open questions, availability matching with a double-booking rejection, drafts, exception tiles, workload counts, and CSV parsing, validation, export and formula safety, plus KPI and funnel arithmetic, empty-data handling, role-scoped analytics, and each import-cleaning rule. Measured: a 500-row import (the UI limit) is profiled and cleaned in about 2 ms in Node 22. CI runs it on every push and deploys the demo to GitHub Pages.
 
 ## How this was built
 
