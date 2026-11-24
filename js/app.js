@@ -6,6 +6,7 @@ import {
 } from './logic.js';
 import { pipelineKpis, funnel, stageDurationStats, sectorByLight, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
 import { rangeChart, stackedBars, funnelChart, dataTable } from './charts.js';
+import { TOUR_STEPS } from './tour.js';
 import { seedPortfolio, portfolioAvailability, PORTFOLIO_USERS } from '../data/portfolio-seed.js';
 import { assessImport, rejectedCsv } from './quality.js';
 import { SAMPLE_CSV } from '../data/sample-import.js';
@@ -27,9 +28,9 @@ const saved = !pinned && !small && load();
 const state = {
   ...(saved || fresh()),
   userId: USERS.some((u) => u.id === params.get('as')) ? params.get('as') : 'dana',
-  view: ['overview', 'deal', 'deals', 'analytics'].includes(params.get('view')) ? params.get('view') : 'analytics',
+  view: ['overview', 'deal', 'deals', 'analytics', 'about'].includes(params.get('view')) ? params.get('view') : 'analytics',
   dealId: params.get('deal') || null,
-  phase: null, tab: 'founders', tile: null, q: '', importPreview: null, status: '',
+  tour: params.get('tour') ? Math.min(Number(params.get('tour')) - 1, TOUR_STEPS.length - 1) : null, phase: null, tab: 'founders', tile: null, q: '', importPreview: null, status: '',
   theme: ['light', 'dark'].includes(params.get('theme')) ? params.get('theme') : readTheme(),
 };
 if (state.view === 'deal' && !state.startups.some((s) => s.id === state.dealId)) state.view = 'deals';
@@ -107,6 +108,7 @@ function header() {
           type: 'button', 'aria-pressed': state.theme === id ? 'true' : 'false',
           onclick: () => { state.theme = id; applyTheme(); try { localStorage.setItem('vc-deal-pipeline:theme', id); } catch { /* ignore */ } render(); },
         }, label))),
+      h('button', { class: 'btn', onclick: () => startTour() }, 'Take the 1-minute tour'),
       h('label', { for: 'as' }, 'Viewing as'), select,
       h('button', {
         class: 'btn ghost',
@@ -124,13 +126,13 @@ function tabs() {
     class: `tab${state.view === id || (id === 'deals' && state.view === 'deal') ? ' on' : ''}`,
     onclick: () => { state.view = id; state.status = ''; render(); },
   }, label);
-  return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('analytics', 'Analytics'), tab('deals', user().role === 'manager' ? 'All startups' : 'My deals'), tab('overview', 'Overview'));
+  return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('analytics', 'Analytics'), tab('deals', user().role === 'manager' ? 'All startups' : 'My deals'), tab('overview', 'Overview'), tab('about', 'What I did'));
 }
 
 function render() {
   root.replaceChildren(notice(), header(), tabs(),
     h('p', { class: 'status', role: 'status', 'aria-live': 'polite' }, state.status),
-    state.view === 'deal' ? dealPage() : state.view === 'overview' ? overviewView() : state.view === 'analytics' ? analyticsView() : dealsView());
+    state.view === 'deal' ? dealPage() : state.view === 'overview' ? overviewView() : state.view === 'analytics' ? analyticsView() : state.view === 'about' ? aboutView() : dealsView(), tourPanel());
 }
 
 // ---- My deals ----------------------------------------------------------------------------------
@@ -561,6 +563,69 @@ function analyticsView() {
     h('section', { class: 'panel' }, h('h2', {}, 'Data health'),
       h('p', { class: 'note' }, 'How complete the records are. Low numbers here mean the analytics above are less reliable.'),
       datasetHealth(mine).map((c) => barRow(c.label, c.percent, `${c.passed}/${c.total}`, true))));
+}
+
+// ---- Guided tour ---------------------------------------------------------------------------
+
+function startTour() { goTour(0); }
+
+function goTour(i) {
+  const step = TOUR_STEPS[i];
+  state.tour = i;
+  state.userId = step.as;
+  state.importPreview = null;
+  state.status = '';
+  panel.open && panel.close();
+  state.view = step.view;
+  if (step.id === 'import') { state.view = 'deals'; previewCsv(SAMPLE_CSV); return; }
+  if (step.id === 'deal') {
+    const mine = visibleStartups(user(), state.startups);
+    const pick = mine.find((s) => s.checklist.c8 && !s.form.submitted) ?? mine[0];
+    state.dealId = pick.id; state.phase = null; state.tab = 'founders';
+  }
+  render();
+  window.scrollTo(0, 0);
+}
+
+function endTour() { state.tour = null; render(); }
+
+function tourPanel() {
+  if (state.tour == null) return null;
+  const i = state.tour;
+  const step = TOUR_STEPS[i];
+  const last = i === TOUR_STEPS.length - 1;
+  return h('aside', { class: 'tour', role: 'region', 'aria-label': 'Guided tour' },
+    h('p', { class: 'cap' }, `Step ${i + 1} of ${TOUR_STEPS.length}`),
+    h('h2', {}, step.title), h('p', {}, step.text),
+    h('div', { class: 'row end' },
+      h('button', { class: 'btn ghost', onclick: endTour }, last ? 'Close' : 'Skip'),
+      i > 0 && h('button', { class: 'btn ghost', onclick: () => goTour(i - 1) }, 'Back'),
+      !last && h('button', { class: 'btn', onclick: () => goTour(i + 1) }, 'Next')));
+}
+
+// ---- What I did ------------------------------------------------------------------------------
+
+const REPO = 'https://github.com/aradyaacovi/vc-deal-pipeline';
+
+function aboutView() {
+  const list = (items) => h('ul', {}, items.map((x) => h('li', {}, x)));
+  const link = (text, path) => h('a', { href: `${REPO}/${path}` }, text);
+  return h('main', { class: 'about' },
+    h('section', { class: 'panel' }, h('h2', {}, 'What I did'),
+      h('p', {}, 'I built a deal-flow tool for a student VC fund: one process for every startup, a traffic-light evaluation, a manager view made of exceptions, and an analytics dashboard. The product decisions come from my own work mentoring startups in a university fund. The code was written with Claude Code, under my direction and review.')),
+    h('div', { class: 'two' },
+      h('section', { class: 'panel' }, h('h3', {}, 'My part'),
+        list(['Defined the problem and who the users are (analyst, manager).', 'Designed the process: four phases, the checklist, the P0 traffic-light rule and what it should and should not decide.', 'Decided how roles work and what each can see.', 'Chose which metrics and data-quality checks to build, and reviewed how they are defined.', 'Set the requirements, corrected the specifications, and approved every change before it merged.', 'Checked the result in the browser against what I intended.'])),
+      h('section', { class: 'panel' }, h('h3', {}, 'Claude Code\u2019s part'),
+        list(['Wrote the code and the tests from my specifications.', 'Proposed options and trade-offs, which I accepted, changed or rejected.', 'Opened a pull request for each change, with tests and screenshots.', 'Everything it produced is a draft until I review it; the AI helper in the tool follows the same rule.']))),
+    h('section', { class: 'panel' }, h('h2', {}, 'How the work ran'),
+      h('ol', {}, ['Write a specification and agree on it.', 'Build it on its own branch.', 'Run the tests and check it in a browser.', 'Open a pull request.', 'I review it, ask for changes, and decide whether it merges.'].map((x) => h('li', {}, x))),
+      h('p', { class: 'note' }, 'Small steps, one pull request each, so every decision can be read and reversed.')),
+    h('section', { class: 'panel' }, h('h2', {}, 'Decisions worth asking me about'),
+      list(['Why the traffic light is a suggestion and not an automatic verdict.', 'Why a bad CSV row is rejected but an untidy one is cleaned and flagged.', 'Why founder-provided information is kept apart and labelled.', 'Why the charts are hand-drawn SVG and the demo data is generated from a seed.']),
+      h('p', {}, 'The reasoning is written down in ', link('DECISIONS.md', 'blob/main/docs/DECISIONS.md'), '; each metric is defined in ', link('METRICS.md', 'blob/main/docs/METRICS.md'), '.')),
+    h('section', { class: 'panel' }, h('h2', {}, 'Honest limits'),
+      h('p', {}, 'No backend and no sign-in: roles are enforced in the interface to show the model. All data is invented, so the numbers show how the metrics behave, not how a real fund performs. Tests run on every change: ', link('see the latest run', 'actions'), '.')));
 }
 
 let lastWidth = document.documentElement.clientWidth;

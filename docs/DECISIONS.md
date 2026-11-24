@@ -46,6 +46,10 @@ A charting library would add a dependency and a build step to a project whose po
 
 Nine hand-written startups barely show a funnel. A seeded generator makes 12 (the scale of a small student fund, not an invented large one), with realistic stalls and delays, and gives the same data on every run so tests, screenshots and the live demo agree. A time-series chart of weekly flow was tried and removed: with a dozen startups it is noise, and the process has no such weekly rhythm. The dashboard opens first, as the manager, because the first thing a visitor should see is the analysis.
 
+## A tour and a "What I did" screen, in the product itself
+
+A visitor may spend two minutes here. The tour (four steps, skippable) walks the real flow: the numbers, a messy import, one startup's evaluation, then a screen that says who decided what and where the AI helped. That last screen is first-person and plain on purpose: the person reading it is judging the author as much as the tool. The tour steps are data in `js/tour.js` so they can be tested.
+
 ## Analytics respect the same roles as the rest of the app
 
 The Analytics tab reads through the same visibility rule as the deal list, so an analyst's KPIs cover only their own startups. A test pins this.
