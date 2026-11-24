@@ -90,7 +90,7 @@ npm test         # 43 unit tests, Node 20+, no install needed
 
 ## Tests
 
-43 tests, all passing in CI. The suite covers the checklist and phase progress, activity logging, analyst isolation and manager read-only access, quiet and due-soon detection, the P0 light rule, form blockers, open questions, availability matching with a double-booking rejection, drafts, exception tiles, workload counts, and CSV parsing, validation, export and formula safety, plus KPI and funnel arithmetic, empty-data handling, role-scoped analytics, and each import-cleaning rule. Measured: a 500-row import (the UI limit) is profiled and cleaned in about 2 ms in Node 22. CI runs it on every push and deploys the demo to GitHub Pages.
+43 tests, all passing in CI. The suite covers the checklist and phase progress, activity logging, analyst isolation and manager read-only access, quiet and due-soon detection, the P0 light rule, form blockers, open questions, availability matching with a double-booking rejection, drafts, exception tiles, workload counts, and CSV parsing, validation, export and formula safety, plus KPI and funnel arithmetic, empty-data handling, role-scoped analytics, and each import-cleaning rule. Measured: a 500-row import (the UI limit) is profiled and cleaned in about 2 ms in Node 22. CI runs it on every push.
 
 ## How this was built
 
