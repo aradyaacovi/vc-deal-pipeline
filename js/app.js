@@ -2,8 +2,11 @@ import {
   PHASES, CHECKLIST, TRACKS, P0_QUESTIONS, P0_STATUSES, LIGHTS, FORM_FIELDS, TILES,
   progress, phaseProgress, nextStep, currentPhase, visibleStartups, canEdit, daysToTarget, isQuiet, lastActivity,
   toggleItem, logActivity, p0Rule, proposeForm, formBlockers, openQuestions, startupLight,
-  findSlots, bookSlot, freeSlots, slotLabel, draftText, analystSummary, parseCsv, toCsv, validateImport, newStartup,
+  findSlots, bookSlot, freeSlots, slotLabel, draftText, analystSummary, parseCsv, toCsv, newStartup,
 } from './logic.js';
+import { pipelineKpis, funnel, stageDurations, sectorBreakdown, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
+import { assessImport, rejectedCsv } from './quality.js';
+import { SAMPLE_CSV } from '../data/sample-import.js';
 import { load, save, clear } from './store.js';
 import { USERS, seedStartups, seedAvailability, seedBookings, slotGrid } from '../data/seed.js';
 
@@ -17,7 +20,7 @@ const saved = !pinned && load();
 const state = {
   ...(saved || fresh()),
   userId: USERS.some((u) => u.id === params.get('as')) ? params.get('as') : 'ava',
-  view: ['overview', 'deal'].includes(params.get('view')) ? params.get('view') : 'deals',
+  view: ['overview', 'deal', 'analytics'].includes(params.get('view')) ? params.get('view') : 'deals',
   dealId: params.get('deal') || null,
   phase: null, tab: 'founders', tile: null, q: '', importPreview: null, status: '',
   theme: ['light', 'dark'].includes(params.get('theme')) ? params.get('theme') : readTheme(),
@@ -114,13 +117,13 @@ function tabs() {
     class: `tab${state.view === id || (id === 'deals' && state.view === 'deal') ? ' on' : ''}`,
     onclick: () => { state.view = id; state.status = ''; render(); },
   }, label);
-  return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('deals', user().role === 'manager' ? 'All startups' : 'My deals'), tab('overview', 'Overview'));
+  return h('nav', { class: 'tabs', 'aria-label': 'Views' }, tab('deals', user().role === 'manager' ? 'All startups' : 'My deals'), tab('overview', 'Overview'), tab('analytics', 'Analytics'));
 }
 
 function render() {
   root.replaceChildren(notice(), header(), tabs(),
     h('p', { class: 'status', role: 'status', 'aria-live': 'polite' }, state.status),
-    state.view === 'deal' ? dealPage() : state.view === 'overview' ? overviewView() : dealsView());
+    state.view === 'deal' ? dealPage() : state.view === 'overview' ? overviewView() : state.view === 'analytics' ? analyticsView() : dealsView());
 }
 
 // ---- My deals ----------------------------------------------------------------------------------
@@ -161,9 +164,17 @@ async function onFile(e) {
   e.target.value = '';
   if (!file) return;
   if (file.size > MAX_IMPORT_BYTES) { state.status = 'File is larger than 1 MB.'; return render(); }
-  const rows = parseCsv(await file.text());
+  previewCsv(await file.text());
+}
+
+function previewCsv(text) {
+  const rows = parseCsv(text);
   if (rows.length > 501) { state.status = 'Import is limited to 500 rows.'; return render(); }
-  state.importPreview = validateImport(rows, { lead: state.userId, today, newId, existingNames: state.startups.map((s) => s.name) });
+  state.importRows = rows;
+  state.importPreview = assessImport(rows, {
+    lead: state.userId, today, newId,
+    existingNames: state.startups.map((s) => s.name), existingSectors: state.startups.map((s) => s.sector),
+  });
   state.status = '';
   render();
 }
@@ -178,12 +189,24 @@ function importPanel() {
   const p = state.importPreview;
   if (!p) return null;
   const n = p.startups.length;
+  const tone = p.score >= 80 ? 'green' : p.score >= 50 ? 'yellow' : 'red';
+  const list = (items, cls) => items.length > 0 && h('ul', { class: cls }, items.slice(0, 12).map((x) => h('li', {}, `Line ${x.line}: ${x.message}`)), items.length > 12 && h('li', {}, `…and ${items.length - 12} more`));
   return h('section', { class: 'panel', 'aria-label': 'Import preview' },
-    h('h2', {}, 'Import preview'),
-    h('p', {}, `${n} valid row${n === 1 ? '' : 's'}, ${p.errors.length} problem${p.errors.length === 1 ? '' : 's'}. Columns: name, sector, track, one_liner.`),
-    p.errors.length > 0 && h('ul', { class: 'errors' }, p.errors.slice(0, 20).map((er) => h('li', {}, `Line ${er.line}: ${er.message}`)), p.errors.length > 20 && h('li', {}, `…and ${p.errors.length - 20} more`)),
+    h('h2', {}, 'Import check'),
+    h('div', { class: 'kpis' },
+      h('div', { class: 'kpi' }, h('span', { class: `kpi-v pill-${tone}` }, `${p.score}`), h('span', { class: 'kpi-l' }, 'Quality score'), h('span', { class: 'kpi-h' }, `${p.clean} of ${p.rows} rows clean`)),
+      h('div', { class: 'kpi' }, h('span', { class: 'kpi-v' }, String(n)), h('span', { class: 'kpi-l' }, 'Ready to import'), h('span', { class: 'kpi-h' }, 'after cleaning')),
+      h('div', { class: 'kpi' }, h('span', { class: 'kpi-v' }, String(p.errors.length)), h('span', { class: 'kpi-l' }, 'Rejected'), h('span', { class: 'kpi-h' }, 'cannot be imported')),
+      h('div', { class: 'kpi' }, h('span', { class: 'kpi-v' }, String(p.warnings.length)), h('span', { class: 'kpi-l' }, 'Warnings'), h('span', { class: 'kpi-h' }, 'imported, worth a look'))),
+    p.columns.length > 0 && h('div', { class: 'scroll' }, h('table', {}, h('caption', { class: 'sr' }, 'Completeness by column'),
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Column'), h('th', { scope: 'col' }, 'Filled'), h('th', { scope: 'col' }, 'Completeness'))),
+      h('tbody', {}, p.columns.map((c) => h('tr', {}, h('th', { scope: 'row' }, c.name), h('td', { class: 'num' }, `${c.filled}/${c.total}`),
+        h('td', {}, h('div', { class: 'bar-row', style: 'grid-template-columns:1fr 3rem;margin:0' }, h('span', { class: 'bar' }, h('span', { class: 'bar-fill', style: `width:${c.percent}%` })), h('span', { class: 'bar-n' }, `${c.percent}%`)))))))),
+    p.errors.length > 0 && h('h3', {}, 'Rejected rows'), list(p.errors, 'errors'),
+    p.warnings.length > 0 && h('h3', {}, 'Warnings (cleaned or flagged)'), list(p.warnings, 'warns'),
     h('div', { class: 'row' },
       n > 0 && h('button', { class: 'btn', onclick: () => { state.startups = [...state.startups, ...p.startups]; persist(); state.status = `Imported ${n} startup${n === 1 ? '' : 's'}.`; state.importPreview = null; render(); } }, `Import ${n} valid row${n === 1 ? '' : 's'}`),
+      p.errors.length > 0 && h('button', { class: 'btn ghost', onclick: () => download('rejected-rows.csv', rejectedCsv(state.importRows, p.errors)) }, 'Download rejected rows'),
       h('button', { class: 'btn ghost', onclick: () => { state.importPreview = null; render(); } }, 'Cancel')));
 }
 
@@ -208,6 +231,7 @@ function dealsView() {
       isAnalyst && addForm(),
       h('div', { class: 'row' },
         isAnalyst && h('label', { class: 'btn ghost file' }, 'Import CSV', h('input', { type: 'file', accept: '.csv,text/csv', hidden: true, onchange: onFile })),
+        isAnalyst && h('button', { class: 'btn ghost', onclick: () => previewCsv(SAMPLE_CSV) }, 'Try a messy sample file'),
         h('button', { class: 'btn ghost', onclick: () => download('startups.csv', toCsv(mine)) }, 'Export CSV'))),
     importPanel(),
     h('div', { class: 'board' }, columns.map((c) => {
@@ -466,6 +490,55 @@ function overviewView() {
             h('td', {}, phaseLabel(currentPhase(s))), h('td', { class: 'num' }, `${progress(s).percent}%`),
             h('td', { class: 'wrap' }, next ? next.label : 'Done'), h('td', {}, pill(startupLight(s))), h('td', {}, targetChip(s) ?? '—'));
         }))))));
+}
+
+// ---- Analytics ---------------------------------------------------------------------------------------
+
+function kpi(value, label, hint) {
+  return h('div', { class: 'kpi' }, h('span', { class: 'kpi-v' }, value ?? '—'), h('span', { class: 'kpi-l' }, label), h('span', { class: 'kpi-h' }, hint));
+}
+
+function barRow(label, percent, text, wide = false) {
+  return h('div', { class: 'bar-row', style: wide ? 'grid-template-columns:14rem 1fr 4rem' : null }, h('span', {}, label),
+    h('span', { class: 'bar', role: 'img', 'aria-label': `${label}: ${text}` }, h('span', { class: 'bar-fill', style: `width:${percent ?? 0}%` })), h('span', { class: 'bar-n' }, text));
+}
+
+function analyticsView() {
+  const me = user();
+  const mine = visibleStartups(me, state.startups);
+  if (!mine.length) return h('main', {}, h('p', { class: 'empty' }, 'No startups to analyse yet.'));
+  const k = pipelineKpis(mine, today);
+  const fn = funnel(mine);
+  const durations = stageDurations(mine);
+  const sectors = sectorBreakdown(mine);
+  const mix = lightMix(mine);
+  const pctText = (v) => (v == null ? '—' : `${v}%`);
+  return h('main', {},
+    h('div', { class: 'row', style: 'justify-content:space-between' },
+      h('p', { class: 'lead' }, me.role === 'manager' ? 'All startups' : 'Your startups', ` · as of ${today} · definitions in `, h('a', { href: 'https://github.com/aradyaacovi/vc-deal-pipeline/blob/main/docs/METRICS.md' }, 'METRICS.md')),
+      h('button', { class: 'btn ghost', onclick: () => download('pipeline-analytics.csv', analyticsCsv(mine, today)) }, 'Export analytics CSV')),
+    h('div', { class: 'kpis' },
+      kpi(String(k.active), 'Active', `${k.total} startups in total`),
+      kpi(pctText(k.completionRate), 'Completed', `${k.completed} through the committee`),
+      kpi(pctText(k.avgProgress), 'Avg progress', 'checklist items done'),
+      kpi(pctText(k.quietRate), 'Gone quiet', `${k.quiet} of ${k.active} active`),
+      kpi(pctText(k.redRate), 'Red lights', `${k.red} of ${mine.length - mix.none} evaluated`),
+      kpi(k.daysToFirstMeeting == null ? null : `${k.daysToFirstMeeting}d`, 'To first meeting', 'assignment to meeting done'),
+      kpi(pctText(k.formRate), 'Form submitted', 'of startups already met')),
+    h('section', { class: 'panel' }, h('h2', {}, 'Pipeline funnel'),
+      h('p', { class: 'note' }, 'Startups that reached each stage, and the share that moved on from the stage before.'),
+      fn.map((f) => barRow(f.label, Math.round((f.reached / mine.length) * 100), `${f.reached}${f.conversion == null ? '' : ` · ${f.conversion}%`}`))),
+    h('section', { class: 'panel' }, h('h2', {}, 'Time in each phase'),
+      h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Phase', 'Startups that finished it', 'Average days'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', {}, durations.map((d) => h('tr', {}, h('th', { scope: 'row' }, d.label), h('td', { class: 'num' }, String(d.startups)), h('td', { class: 'num' }, d.avgDays == null ? '—' : String(d.avgDays)))))))),
+    h('section', { class: 'panel' }, h('h2', {}, 'By sector'),
+      h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Sector', 'Startups', 'Share', 'Avg progress', 'Red lights'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', {}, sectors.map((x) => h('tr', {}, h('th', { scope: 'row' }, x.sector), h('td', { class: 'num' }, String(x.count)), h('td', { class: 'num' }, `${x.share}%`), h('td', { class: 'num' }, `${x.avgProgress}%`), h('td', { class: 'num' }, String(x.red)))))))),
+    h('section', { class: 'panel' }, h('h2', {}, 'Traffic lights'),
+      h('p', {}, ['green', 'yellow', 'red', 'none'].map((l) => h('span', { class: `pill pill-${l}`, style: 'margin-right:.5rem' }, `${l === 'none' ? 'Not evaluated' : LIGHTS[l]}: ${mix[l]}`)))),
+    h('section', { class: 'panel' }, h('h2', {}, 'Data health'),
+      h('p', { class: 'note' }, 'How complete the records are. Low numbers here mean the analytics above are less reliable.'),
+      datasetHealth(mine).map((c) => barRow(c.label, c.percent, `${c.passed}/${c.total}`, true))));
 }
 
 render();

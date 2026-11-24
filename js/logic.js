@@ -359,12 +359,15 @@ export function parseCsv(text) {
 
 const CSV_COLUMNS = ['name', 'sector', 'track', 'one_liner'];
 
+/** One CSV cell, quoted when needed and made safe against spreadsheet formula injection. */
+export function csvEscape(v) {
+  let s = v == null ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheets from running imported text as a formula
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 export function toCsv(startups) {
-  const esc = (v) => {
-    let s = v == null ? '' : String(v);
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheets from running imported text as a formula
-    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const esc = csvEscape;
   const lines = [CSV_COLUMNS.join(',')];
   for (const s of startups) lines.push([s.name, s.sector, s.track, s.oneLiner].map(esc).join(','));
   return `${lines.join('\n')}\n`;
@@ -377,9 +380,10 @@ export function toCsv(startups) {
 export function validateImport(rows, { lead, today, newId, existingNames = [] }) {
   const errors = [];
   const startups = [];
-  if (rows.length === 0) return { startups, errors: [{ line: 1, message: 'File is empty' }] };
+  const accepted = []; // { line, startup }: lets callers tie a startup back to its file line
+  if (rows.length === 0) return { startups, accepted, errors: [{ line: 1, message: 'File is empty' }] };
   const header = rows[0].map((h) => h.trim().toLowerCase());
-  if (!header.includes('name')) return { startups, errors: [{ line: 1, message: 'Missing required column: name' }] };
+  if (!header.includes('name')) return { startups, accepted, errors: [{ line: 1, message: 'Missing required column: name' }] };
   const col = (r, name) => (r[header.indexOf(name)] ?? '').trim();
   const seen = new Set();
   const existing = new Set(existingNames.map((n) => n.toLowerCase()));
@@ -394,10 +398,12 @@ export function validateImport(rows, { lead, today, newId, existingNames = [] })
     if (existing.has(key)) return errors.push({ line, message: `"${name}" is already on your list` });
     if (seen.has(key)) return errors.push({ line, message: `Duplicate name "${name}" in file` });
     seen.add(key);
-    startups.push(newStartup({ id: newId(), name, sector: col(r, 'sector') || 'Unspecified', track, oneLiner: col(r, 'one_liner'), lead, today }));
+    const startup = newStartup({ id: newId(), name, sector: col(r, 'sector') || 'Unspecified', track, oneLiner: col(r, 'one_liner'), lead, today });
+    startups.push(startup);
+    accepted.push({ line, startup });
     return null;
   });
-  return { startups, errors };
+  return { startups, accepted, errors };
 }
 
 export function newStartup({ id, name, sector, track = 'intro', oneLiner = '', lead, second = null, today }) {
