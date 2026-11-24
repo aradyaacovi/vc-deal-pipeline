@@ -4,7 +4,7 @@ import {
   toggleItem, logActivity, p0Rule, proposeForm, formBlockers, openQuestions, startupLight,
   findSlots, bookSlot, freeSlots, slotLabel, draftText, analystSummary, parseCsv, toCsv, newStartup,
 } from './logic.js';
-import { pipelineKpis, funnel, stageDurationStats, sectorByLight, lightMix, datasetHealth, analyticsCsv } from './analytics.js';
+import { pipelineKpis, funnel, stageDurationStats, lightMix, datasetHealth, analyticsCsv, drillDown } from './analytics.js';
 import { rangeChart, stackedBars, funnelChart, dataTable } from './charts.js';
 import { TOUR_STEPS } from './tour.js';
 import { seedPortfolio, portfolioAvailability, PORTFOLIO_USERS } from '../data/portfolio-seed.js';
@@ -30,7 +30,7 @@ const state = {
   userId: USERS.some((u) => u.id === params.get('as')) ? params.get('as') : 'dana',
   view: ['overview', 'deal', 'deals', 'analytics', 'about'].includes(params.get('view')) ? params.get('view') : 'analytics',
   dealId: params.get('deal') || null,
-  tour: params.get('tour') ? Math.min(Number(params.get('tour')) - 1, TOUR_STEPS.length - 1) : null, phase: null, tab: 'founders', tile: null, q: '', importPreview: null, status: '',
+  tour: params.get('tour') ? Math.min(Number(params.get('tour')) - 1, TOUR_STEPS.length - 1) : null, phase: null, tab: 'founders', tile: null, q: '', importPreview: null, drill: null, status: '',
   theme: ['light', 'dark'].includes(params.get('theme')) ? params.get('theme') : readTheme(),
 };
 if (state.view === 'deal' && !state.startups.some((s) => s.id === state.dealId)) state.view = 'deals';
@@ -512,10 +512,22 @@ function barRow(label, percent, text, wide = false) {
     h('span', { class: 'bar', role: 'img', 'aria-label': `${label}: ${text}` }, h('span', { class: 'bar-fill', style: `width:${percent ?? 0}%` })), h('span', { class: 'bar-n' }, text));
 }
 
-function chartPanel(title, note, svg, table, legendItems) {
+function chartPanel(title, note, svg, table, legendItems, detail) {
   return h('section', { class: 'panel' }, h('h2', {}, title), note && h('p', { class: 'note' }, note),
     legendItems && h('p', { class: 'legend' }, legendItems.map(([color, text]) => h('span', {}, h('i', { class: 'swatch', style: `background:var(--${color})` }), text))),
-    svg, table);
+    svg, table, detail);
+}
+
+/** Which element of a chart is selected (one per chart kind), and the list of startups behind it. */
+const pick = (kind) => (state.drill?.kind === kind ? state.drill.key : null);
+function toggle(kind, key) { state.drill = pick(kind) === key ? null : { kind, key }; render(); }
+function drillPanel(kind, startups, title) {
+  if (!title) return null;
+  const rows = drillDown(startups, kind, pick(kind), today);
+  return h('div', { class: 'drill', role: 'region', 'aria-label': `Startups behind ${title}` },
+    h('div', { class: 'row', style: 'justify-content:space-between' }, h('h3', {}, `${title} \u00b7 ${rows.length} startup${rows.length === 1 ? '' : 's'}`),
+      h('button', { class: 'btn ghost sm', onclick: () => { state.drill = null; render(); } }, 'Close')),
+    h('ul', { class: 'drill-list' }, rows.map((r) => h('li', {}, h('button', { class: 'link', onclick: () => openDeal(r.id) }, r.name), h('span', { class: 'note' }, ` ${r.detail}`)))));
 }
 
 function chartWidth() { return Math.max(320, Math.min(960, document.documentElement.clientWidth - 56)); }
@@ -528,7 +540,6 @@ function analyticsView() {
   const fn = funnel(mine);
   const stats = stageDurationStats(mine);
   const W = chartWidth();
-  const sectors = sectorByLight(mine);
   const mix = lightMix(mine);
   const people = ANALYSTS.filter((a) => me.role === 'manager' || a.id === me.id);
   const load = analystSummary(mine, people, today);
@@ -546,23 +557,19 @@ function analyticsView() {
       kpi(pctText(k.redRate), 'Red lights', `${k.red} of ${mine.length - mix.none} evaluated`),
       kpi(k.daysToFirstMeeting == null ? null : `${k.daysToFirstMeeting}d`, 'To first meeting', 'assignment to meeting done'),
       kpi(pctText(k.formRate), 'Form submitted', 'of startups already met')),
-    chartPanel('Where startups drop out', 'Startups that reached each stage, and the share that moved on from the stage before.',
-      funnelChart({ width: W, stages: fn, label: `Funnel: ${fn.map((f) => `${f.label} ${f.reached}`).join(', ')}.` }),
-      dataTable('Funnel', ['Stage', 'Reached', 'Conversion %'], fn.map((f) => [f.label, f.reached, f.conversion]))),
-    chartPanel('Time in each phase', slow ? `${slow.label} is the slowest phase: median ${slow.median} days. Bar = middle half, tick = median, line = fastest to slowest; in brackets, startups that finished the phase.` : 'No finished phases yet.',
-      rangeChart({ width: W, rows: stats, label: `Days per phase, median: ${stats.map((x) => `${x.label} ${x.median ?? 'none'}`).join(', ')}.` }),
-      dataTable('Days per phase', ['Phase', 'Finished', 'Fastest', 'Q1', 'Median', 'Q3', 'Slowest'], stats.map((x) => [x.label, x.n, x.min, x.p25, x.median, x.p75, x.max]))),
-    chartPanel('Sectors and traffic lights', 'Where startups and risks concentrate.',
-      stackedBars({ width: W, rows: sectors.map((x) => ({ label: x.sector, parts: ['green', 'yellow', 'red', 'none'].map((key) => ({ key, value: x[key] })) })), keys: [{ key: 'green', color: 'green' }, { key: 'yellow', color: 'yellow' }, { key: 'red', color: 'red' }, { key: 'none', color: 'none' }], label: `Startups by sector and light. Largest: ${sectors[0].sector}, ${sectors[0].total}.` }),
-      dataTable('Sectors by light', ['Sector', 'Green', 'Yellow', 'Red', 'Not evaluated'], sectors.map((x) => [x.sector, x.green, x.yellow, x.red, x.none])),
-      [['green', 'Green'], ['yellow', 'Yellow'], ['red', 'Red'], ['control', 'Not evaluated']]),
-    chartPanel(me.role === 'manager' ? 'Workload by analyst' : 'Your workload', 'Open startups as lead, split into moving and gone quiet.',
-      stackedBars({ width: W, rows: load.map((a) => ({ label: a.name, parts: [{ key: 'moving', value: a.open - a.quiet }, { key: 'quiet', value: a.quiet }] })), keys: [{ key: 'moving', color: 'brand' }, { key: 'quiet', color: 'yellow' }], label: `Open startups per analyst: ${load.map((a) => `${a.name} ${a.open}`).join(', ')}.` }),
+    chartPanel('Where startups drop out', 'Startups that reached each stage, and the share that moved on from the stage before. Click a stage to see which startups.',
+      funnelChart({ width: W, stages: fn, selected: pick('stage'), onSelect: (id) => toggle('stage', id), label: `Funnel: ${fn.map((f) => `${f.label} ${f.reached}`).join(', ')}.` }),
+      dataTable('Funnel', ['Stage', 'Reached', 'Conversion %'], fn.map((f) => [f.label, f.reached, f.conversion])), null, drillPanel('stage', mine, fn.find((f) => f.id === pick('stage'))?.label)),
+    chartPanel('Time in each phase', slow ? `${slow.label} is the slowest phase: median ${slow.median} days. Bar = middle half, tick = median, line = fastest to slowest; in brackets, startups that finished the phase. Click a phase for the startups.` : 'No finished phases yet.',
+      rangeChart({ width: W, rows: stats, selected: pick('phase'), onSelect: (id) => toggle('phase', id), label: `Days per phase, median: ${stats.map((x) => `${x.label} ${x.median ?? 'none'}`).join(', ')}.` }),
+      dataTable('Days per phase', ['Phase', 'Finished', 'Fastest', 'Q1', 'Median', 'Q3', 'Slowest'], stats.map((x) => [x.label, x.n, x.min, x.p25, x.median, x.p75, x.max])), null, drillPanel('phase', mine, stats.find((x) => x.id === pick('phase'))?.label)),
+    chartPanel(me.role === 'manager' ? 'Workload by analyst' : 'Your workload', 'Open startups as lead, split into moving and gone quiet. Click a name to see their startups.',
+      stackedBars({ width: W, rows: load.map((a) => ({ key: a.id, label: a.name, parts: [{ key: 'moving', value: a.open - a.quiet }, { key: 'quiet', value: a.quiet }] })), selected: pick('analyst'), onSelect: (id) => toggle('analyst', id), keys: [{ key: 'moving', color: 'brand' }, { key: 'quiet', color: 'yellow' }], label: `Open startups per analyst: ${load.map((a) => `${a.name} ${a.open}`).join(', ')}.` }),
       dataTable('Workload', ['Analyst', 'Open as lead', 'Gone quiet'], load.map((a) => [a.name, a.open, a.quiet])),
-      [['brand', 'Moving'], ['yellow', 'Gone quiet']]),
+      [['brand', 'Moving'], ['yellow', 'Gone quiet']], drillPanel('analyst', mine, load.find((a) => a.id === pick('analyst'))?.name)),
     h('section', { class: 'panel' }, h('h2', {}, 'Data health'),
       h('p', { class: 'note' }, 'How complete the records are. Low numbers here mean the analytics above are less reliable.'),
-      datasetHealth(mine).map((c) => barRow(c.label, c.percent, `${c.passed}/${c.total}`, true))));
+      datasetHealth(mine).filter((c) => ['second', 'target', 'founders'].includes(c.id)).map((c) => barRow(c.label, c.percent, `${c.passed}/${c.total}`, true))));
 }
 
 // ---- Guided tour ---------------------------------------------------------------------------
@@ -610,21 +617,30 @@ const REPO = 'https://github.com/aradyaacovi/vc-deal-pipeline';
 function aboutView() {
   const list = (items) => h('ul', {}, items.map((x) => h('li', {}, x)));
   const link = (text, path) => h('a', { href: `${REPO}/${path}` }, text);
+  const steps = ['Write a specification and agree on it', 'Build it on its own branch', 'Run the tests, check it in a browser', 'Open a pull request', 'I review and decide whether it merges'];
+  const skills = ['Process design', 'KPI definition', 'Data-quality rules', 'Role-based access', 'Product specification', 'Testing and CI', 'Directing an AI developer'];
   return h('main', { class: 'about' },
-    h('section', { class: 'panel' }, h('h2', {}, 'What I did'),
-      h('p', {}, 'I built a deal-flow tool for a student VC fund: one process for every startup, a traffic-light evaluation, a manager view made of exceptions, and an analytics dashboard. The product decisions come from my own work mentoring startups in a university fund. The code was written with Claude Code, under my direction and review.')),
+    h('section', { class: 'hero' },
+      h('p', { class: 'cap' }, 'What I did'),
+      h('h2', {}, 'A deal-flow tool, designed by me and built with Claude Code'),
+      h('p', {}, 'One process for every startup, a traffic-light evaluation, a manager view made of exceptions, and an analytics dashboard. I set the problem, the rules and the metrics; the AI wrote the code under my direction and review.'),
+      h('p', { class: 'chips' }, skills.map((x) => h('span', { class: 'chip-s' }, x)))),
+    h('section', { class: 'panel origin' }, h('h2', {}, 'Where this came from'),
+      h('p', {}, 'I am a third-year Industrial Engineering and Management student, and a member of a student-run VC fund at my university. After the fund\u2019s training course I mentor early-stage university startups and guide them toward the investment committee.'),
+      h('p', {}, 'Doing that, I followed each startup across a spreadsheet, a shared drive, meeting notes and forms. The questions were always the same: where is each startup, what is the next step, who needs attention? This project is my attempt to answer them with one clear process and a few well-defined numbers.'),
+      h('p', { class: 'note' }, 'This public version is generic: the data is invented and nothing from the fund is in it.')),
     h('div', { class: 'two' },
-      h('section', { class: 'panel' }, h('h3', {}, 'My part'),
+      h('section', { class: 'panel mine' }, h('h3', {}, 'My part'),
         list(['Defined the problem and who the users are (analyst, manager).', 'Designed the process: four phases, the checklist, the P0 traffic-light rule and what it should and should not decide.', 'Decided how roles work and what each can see.', 'Chose which metrics and data-quality checks to build, and reviewed how they are defined.', 'Set the requirements, corrected the specifications, and approved every change before it merged.', 'Checked the result in the browser against what I intended.'])),
-      h('section', { class: 'panel' }, h('h3', {}, 'Claude Code\u2019s part'),
+      h('section', { class: 'panel ai' }, h('h3', {}, 'Claude Code\u2019s part'),
         list(['Wrote the code and the tests from my specifications.', 'Proposed options and trade-offs, which I accepted, changed or rejected.', 'Opened a pull request for each change, with tests and screenshots.', 'Everything it produced is a draft until I review it; the AI helper in the tool follows the same rule.']))),
     h('section', { class: 'panel' }, h('h2', {}, 'How the work ran'),
-      h('ol', {}, ['Write a specification and agree on it.', 'Build it on its own branch.', 'Run the tests and check it in a browser.', 'Open a pull request.', 'I review it, ask for changes, and decide whether it merges.'].map((x) => h('li', {}, x))),
+      h('ol', { class: 'steps' }, steps.map((x) => h('li', {}, x))),
       h('p', { class: 'note' }, 'Small steps, one pull request each, so every decision can be read and reversed.')),
     h('section', { class: 'panel' }, h('h2', {}, 'Decisions worth asking me about'),
       list(['Why the traffic light is a suggestion and not an automatic verdict.', 'Why a bad CSV row is rejected but an untidy one is cleaned and flagged.', 'Why founder-provided information is kept apart and labelled.', 'Why the charts are hand-drawn SVG and the demo data is generated from a seed.']),
       h('p', {}, 'The reasoning is written down in ', link('DECISIONS.md', 'blob/main/docs/DECISIONS.md'), '; each metric is defined in ', link('METRICS.md', 'blob/main/docs/METRICS.md'), '.')),
-    h('section', { class: 'panel' }, h('h2', {}, 'Honest limits'),
+    h('section', { class: 'panel limits' }, h('h2', {}, 'Honest limits'),
       h('p', {}, 'No backend and no sign-in: roles are enforced in the interface to show the model. All data is invented, so the numbers show how the metrics behave, not how a real fund performs. Tests run on every change: ', link('see the latest run', 'actions'), '.')));
 }
 
