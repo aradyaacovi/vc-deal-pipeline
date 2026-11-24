@@ -1,13 +1,13 @@
 # VC Deal Pipeline
 
 [![tests](https://github.com/aradyaacovi/vc-deal-pipeline/actions/workflows/test.yml/badge.svg)](https://github.com/aradyaacovi/vc-deal-pipeline/actions/workflows/test.yml)
-[![live demo](https://img.shields.io/badge/live-demo-1d5a44)](https://aradyaacovi.github.io/vc-deal-pipeline/)
+
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![dependencies](https://img.shields.io/badge/dependencies-none-success)
 
 **An analyst workflow tool for a student VC fund: every startup moves through the same checklist, each step has a ready-made text, the analyst fills in a traffic-light form, meetings are booked from shared availability, and a manager sees exceptions without editing anything.**
 
-Live demo: **[aradyaacovi.github.io/vc-deal-pipeline](https://aradyaacovi.github.io/vc-deal-pipeline/)**. It runs on a fictional fund ("Example Ventures") with invented companies. Data stays in your browser.
+This is a fictional demo: a made-up fund ("Example Ventures") with invented companies. Run it locally as described below; data stays in your browser.
 
 ![My deals](docs/screenshots/pipeline.png)
 
