@@ -135,3 +135,27 @@ export function analyticsCsv(startups, today) {
   for (const s of sectorBreakdown(startups)) rows.push(['sector', s.sector, s.count]);
   return `${rows.map((r) => r.map(csvEscape).join(',')).join('\n')}\n`;
 }
+
+/** The startups behind one chart element, for click-through. kind: 'stage' | 'phase' | 'analyst'. */
+export function drillDown(startups, kind, key, today) {
+  const row = (s, detail) => ({ id: s.id, name: s.name, lead: s.lead, detail });
+  if (kind === 'stage') {
+    const order = [...PHASES.map((p) => p.id), 'done'];
+    const at = order.indexOf(key);
+    return startups.filter((s) => order.indexOf(currentPhase(s)) >= at).map((s) => row(s, `now in ${currentPhase(s)}`));
+  }
+  if (kind === 'phase') {
+    const i = PHASES.findIndex((p) => p.id === key);
+    const out = [];
+    for (const s of startups) {
+      const end = phaseCompletedOn(s, key);
+      const start = i === 0 ? s.assigned : phaseCompletedOn(s, PHASES[i - 1].id);
+      if (end && start && daysBetween(start, end) >= 0) out.push({ ...row(s, `${daysBetween(start, end)} days`), days: daysBetween(start, end) });
+    }
+    return out.sort((a, b) => b.days - a.days);
+  }
+  if (kind === 'analyst') {
+    return startups.filter((s) => s.lead === key && currentPhase(s) !== 'done').map((s) => row(s, isQuiet(s, today) ? 'gone quiet' : 'moving'));
+  }
+  return [];
+}

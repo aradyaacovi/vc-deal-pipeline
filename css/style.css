@@ -348,3 +348,29 @@ dialog { box-shadow: -18px 0 48px rgba(19,32,27,.18); }
   .tab { white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---- Interactive charts ---- */
+.hit { cursor: default; outline: none; }
+.hit[role="button"] { cursor: pointer; }
+.hit .mark { transition: opacity .12s, filter .12s; }
+.hit:hover .hit-bg, .hit:focus-visible .hit-bg { fill: var(--brand-soft); }
+.hit:hover .mark, .hit:focus-visible .mark { filter: brightness(1.12); }
+.hit.on .hit-bg { fill: var(--brand-soft); stroke: var(--brand); stroke-width: 1; }
+.drill { margin-top: .6rem; padding: .8rem 1rem; border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: var(--radius-sm); background: var(--surface-2); }
+.drill h3 { margin: 0; text-transform: none; letter-spacing: 0; font-size: .95rem; color: var(--ink); }
+.drill-list { list-style: none; margin: .4rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem 1.4rem; }
+.drill-list li { white-space: nowrap; }
+
+/* ---- What I did ---- */
+.about .hero { margin: 1rem 0; padding: 1.6rem 1.8rem; border-radius: 16px; background: linear-gradient(135deg, var(--brand-soft), var(--surface)); border: 1px solid var(--line); }
+.about .hero h2 { font-size: 1.6rem; line-height: 1.25; letter-spacing: -0.02em; margin: .2rem 0 .6rem; max-width: 40ch; }
+.about .hero p { max-width: 62ch; color: var(--muted); }
+.about .hero .cap { color: var(--brand); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: .72rem; margin: 0; }
+.about .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; }
+.about .chip-s { padding: .2rem .7rem; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); border-radius: 999px; background: var(--surface); font-size: .82rem; color: var(--ink); }
+.about .origin { border-left: 3px solid var(--brand); }
+.about .origin p { max-width: 70ch; }
+.about .steps { list-style: none; counter-reset: s; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; padding: 0; margin: .6rem 0; }
+.about .steps li { counter-increment: s; position: relative; padding: 2.3rem .8rem .7rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-size: .9rem; line-height: 1.4; margin: 0; }
+.about .steps li::before { content: counter(s); position: absolute; top: .6rem; left: .8rem; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--brand); color: #fff; font-size: .8rem; font-weight: 600; display: grid; place-items: center; }
+.about .limits { background: var(--surface-2); }

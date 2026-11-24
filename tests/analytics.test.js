@@ -85,3 +85,15 @@ test('analytics CSV: header, KPI rows, and no raw formulas', () => {
   assert.ok(csv.includes("'=SUM(A1)"));
   assert.ok(!/(^|,)=SUM/m.test(csv));
 });
+
+test('drillDown lists the startups behind a chart element', async () => {
+  const { seedPortfolio } = await import('../data/portfolio-seed.js');
+  const list = seedPortfolio('2026-11-20').startups ?? seedPortfolio('2026-11-20');
+  const fn = A.funnel(list);
+  for (const f of fn) assert.equal(A.drillDown(list, 'stage', f.id, '2026-11-20').length, f.reached);
+  const st = A.stageDurationStats(list);
+  for (const s of st) assert.equal(A.drillDown(list, 'phase', s.id, '2026-11-20').length, s.n);
+  const leads = [...new Set(list.map((s) => s.lead))];
+  const open = leads.reduce((n, id) => n + A.drillDown(list, 'analyst', id, '2026-11-20').length, 0);
+  assert.equal(open, list.filter((s) => A.funnel([s]).at(-1).reached === 0).length);
+});

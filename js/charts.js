@@ -25,6 +25,17 @@ export function dataTable(caption, headers, rows) {
   return box;
 }
 
+/** One clickable, focusable, hoverable row. A native <title> gives the tooltip; Enter/Space selects. */
+function hit(svg, { x, y, width, height, tip, selected, onSelect }, ...kids) {
+  const g = el('g', { class: `hit${selected ? ' on' : ''}`, role: onSelect ? 'button' : null, tabindex: onSelect ? 0 : null, 'aria-pressed': onSelect ? String(Boolean(selected)) : null, 'aria-label': tip });
+  g.append(el('title', {}, document.createTextNode(tip)), el('rect', { x, y, width, height, fill: 'transparent', class: 'hit-bg' }), ...kids);
+  if (onSelect) {
+    g.addEventListener('click', onSelect);
+    g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } });
+  }
+  svg.append(g);
+}
+
 function frame(width, height, label) {
   return el('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': label, class: 'chart', preserveAspectRatio: 'xMidYMid meet' });
 }
@@ -33,7 +44,7 @@ function frame(width, height, label) {
 const niceMax = (v) => { for (const step of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]) if (step * 4 >= v) return step * 4; return Math.ceil(v / 4) * 4; };
 
 /** Horizontal range bars: the middle half as a bar, the median as a tick, min to max as a whisker. */
-export function rangeChart({ rows, label, unit = 'days', width = 960 }) {
+export function rangeChart({ rows, label, unit = 'days', width = 960, selected = null, onSelect = null }) {
   const rowH = 38;
   const m = { l: 120, r: 36, t: 8, b: 26 };
   const height = m.t + m.b + rows.length * rowH;
@@ -47,19 +58,20 @@ export function rangeChart({ rows, label, unit = 'days', width = 960 }) {
   svg.append(text(m.l - 14, height - 8, unit, { 'text-anchor': 'end' }));
   rows.forEach((r, i) => {
     const cy = m.t + i * rowH + rowH / 2;
-    svg.append(text(m.l - 8, cy + 4, `${r.label} (${r.n})`, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12 }));
-    if (r.n === 0) return;
-    svg.append(
+    const tip = r.n === 0 ? `${r.label}: no startup has finished this phase yet` : `${r.label}: median ${r.median} ${unit}, middle half ${r.p25}\u2013${r.p75}, fastest ${r.min}, slowest ${r.max}, ${r.n} finished`;
+    const kids = [text(m.l - 8, cy + 4, `${r.label} (${r.n})`, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12 })];
+    if (r.n > 0) kids.push(
       el('line', { x1: x(r.min), x2: x(r.max), y1: cy, y2: cy, stroke: COLOR.none, 'stroke-width': 1.5 }),
-      el('rect', { x: x(r.p25), y: cy - 9, width: Math.max(2, x(r.p75) - x(r.p25)), height: 18, rx: 6, fill: COLOR.brand, opacity: 0.88 }),
+      el('rect', { x: x(r.p25), y: cy - 9, width: Math.max(2, x(r.p75) - x(r.p25)), height: 18, rx: 6, fill: COLOR.brand, opacity: 0.88, class: 'mark' }),
       el('line', { x1: x(r.median), x2: x(r.median), y1: cy - 12, y2: cy + 12, stroke: 'var(--ink)', 'stroke-width': 2.5 }),
       text(x(r.max) + 6, cy + 4, `${r.median}`, { fill: 'var(--ink)' }));
+    hit(svg, { x: 0, y: cy - rowH / 2, width, height: rowH, tip, selected: selected === r.id, onSelect: r.n > 0 && onSelect ? () => onSelect(r.id) : null }, ...kids);
   });
   return svg;
 }
 
 /** Stacked horizontal bars. rows: [{ label, parts: [{ key, value }] }], keys: [{ key, color }]. */
-export function stackedBars({ rows, keys, label, width = 960 }) {
+export function stackedBars({ rows, keys, label, width = 960, selected = null, onSelect = null }) {
   const rowH = 26;
   const m = { l: 140, r: 36, t: 6, b: 6 };
   const height = m.t + m.b + rows.length * rowH;
@@ -69,20 +81,22 @@ export function stackedBars({ rows, keys, label, width = 960 }) {
   rows.forEach((r, i) => {
     const cy = m.t + i * rowH;
     let x0 = m.l;
-    svg.append(text(m.l - 8, cy + 16, r.label, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12 }));
+    const kids = [text(m.l - 8, cy + 16, r.label, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12 })];
     for (const p of r.parts) {
       if (!p.value) continue;
       const color = keys.find((k) => k.key === p.key)?.color;
-      svg.append(el('rect', { x: x0, y: cy + 3, width: p.value * scale, height: rowH - 8, fill: COLOR[color] ?? color, rx: 3 }));
+      kids.push(el('rect', { x: x0, y: cy + 3, width: p.value * scale, height: rowH - 8, fill: COLOR[color] ?? color, rx: 3, class: 'mark' }));
       x0 += p.value * scale;
     }
-    svg.append(text(x0 + 6, cy + 16, r.parts.reduce((n, p) => n + p.value, 0), { fill: 'var(--ink)' }));
+    const total = r.parts.reduce((n, p) => n + p.value, 0);
+    kids.push(text(x0 + 6, cy + 16, total, { fill: 'var(--ink)' }));
+    hit(svg, { x: 0, y: cy, width, height: rowH, tip: `${r.label}: ${r.parts.map((p) => `${p.value} ${p.key}`).join(', ')}`, selected: selected === r.key, onSelect: onSelect && total ? () => onSelect(r.key) : null }, ...kids);
   });
   return svg;
 }
 
 /** Funnel: one bar per stage, width = share of the first stage, with the conversion from the stage before. */
-export function funnelChart({ stages, label, width = 960 }) {
+export function funnelChart({ stages, label, width = 960, selected = null, onSelect = null }) {
   const rowH = 34;
   const m = { l: 84, r: 96, t: 6, b: 6 };
   const height = m.t + m.b + stages.length * rowH;
@@ -91,9 +105,10 @@ export function funnelChart({ stages, label, width = 960 }) {
   stages.forEach((s, i) => {
     const cy = m.t + i * rowH;
     const w = ((width - m.l - m.r) * s.reached) / top;
-    svg.append(
+    const tip = `${s.label}: ${s.reached} startups reached it${s.conversion == null ? '' : `, ${s.conversion}% of those that reached the stage before`}`;
+    hit(svg, { x: 0, y: cy, width, height: rowH, tip, selected: selected === s.id, onSelect: onSelect && s.reached ? () => onSelect(s.id) : null },
       text(m.l - 8, cy + 20, s.label, { 'text-anchor': 'end', fill: 'var(--ink)', 'font-size': 12 }),
-      el('rect', { x: m.l, y: cy + 4, width: Math.max(2, w), height: rowH - 10, rx: 6, fill: COLOR.brand, opacity: 1 - i * 0.12 }),
+      el('rect', { x: m.l, y: cy + 4, width: Math.max(2, w), height: rowH - 10, rx: 6, fill: COLOR.brand, opacity: 1 - i * 0.12, class: 'mark' }),
       text(m.l + Math.max(2, w) + 8, cy + 20, s.conversion == null ? `${s.reached}` : `${s.reached} · ${s.conversion}%`, { fill: 'var(--ink)' }));
   });
   return svg;
