@@ -40,6 +40,8 @@ The product decisions come from my own work mentoring startups in a university f
 10. **Pipeline analytics.** The demo opens here. Seven KPIs and four SVG charts (funnel with conversion, time in each phase with spread, sectors by traffic light, workload) over 12 generated startups sized like a small student fund, plus a data-health panel, exportable as one CSV. Analysts see their own startups, managers see all. Every number is defined in [`docs/METRICS.md`](docs/METRICS.md).
 11. **Import with data-quality checks.** A CSV is profiled before anything is saved: per-column completeness, rows rejected with line and reason, rows cleaned and flagged (trimmed spaces, sector spelling normalised, near-duplicate names, formula-like text), and a 0-100 quality score. Rejected rows download as a CSV to fix and resend. A deliberately messy sample file is built in (**Try a messy sample file** on the deals page).
 
+12. **Guided tour and "What I did".** A one-minute, four-step tour (numbers, messy import, one startup, authorship), and a screen that says what I decided, what Claude Code wrote, and how the work ran.
+
 Also: CSV export (formula-safe), light, dark and auto themes, and traffic lights that carry a word as well as a colour.
 
 ## What this project demonstrates
